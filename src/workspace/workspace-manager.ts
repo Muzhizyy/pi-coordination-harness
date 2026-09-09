@@ -9,7 +9,7 @@ export class WorkspaceManager {
   private integrationPath?: string;
 
   constructor(private readonly repo: string, private readonly runId: string) {
-    this.root = join(tmpdir(), "pi-role-harness", `${basename(repo)}-${runId}`);
+    this.root = join(tmpdir(), "flashpro-pi", `${basename(repo)}-${runId}`);
   }
 
   async createIntegration(baseRevision: string): Promise<string> {
@@ -41,9 +41,9 @@ export class WorkspaceManager {
     await gitOk(taskPath, ["add", "-A"]);
     const status = await gitOk(taskPath, ["status", "--porcelain"]);
     if (!status) throw new Error(`Task ${taskId} produced no changes`);
-    await gitOk(taskPath, ["-c", "user.name=Pi Role Harness", "-c", "user.email=role-harness@local", "commit", "-m", `role-harness: ${taskId}`]);
+    await gitOk(taskPath, ["-c", "user.name=FlashPro Pi", "-c", "user.email=role-harness@local", "commit", "-m", `role-harness: ${taskId}`]);
     const commit = await gitOk(taskPath, ["rev-parse", "HEAD"]);
-    await gitOk(this.integrationPath, ["-c", "user.name=Pi Role Harness", "-c", "user.email=role-harness@local", "cherry-pick", commit]);
+    await gitOk(this.integrationPath, ["-c", "user.name=FlashPro Pi", "-c", "user.email=role-harness@local", "cherry-pick", commit]);
     return commit;
   }
 

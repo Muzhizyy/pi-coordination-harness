@@ -1,6 +1,6 @@
 # Architecture
 
-Pi Role Harness is a role-specialized coding-agent control plane built on top of Pi primitives rather than Pi's default single-agent semantics.
+FlashPro Pi is a role-specialized coding-agent control plane built on top of Pi primitives rather than Pi's default single-agent semantics.
 
 ## Top-level flow
 
@@ -63,7 +63,7 @@ Worker outcomes are control-plane signals:
 - `budget_exhausted`
 - `blocked`
 
-A fast worker can escalate to a stronger coding model without waking the planner when the contract remains valid.
+A Flash model can escalate to a stronger coding model without waking the planner when the contract remains valid.
 
 ## Context architecture
 

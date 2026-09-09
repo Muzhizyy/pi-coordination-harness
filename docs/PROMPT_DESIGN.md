@@ -21,10 +21,10 @@ The prompts are part of the runtime protocol. They are intentionally role- and p
 | `planner-system.md` | planner | all planning events | project model / task boundaries | phase commit tool |
 | `planner-initial.md` | planner | new requirement | requirement + IR + decisions | `commit_plan` |
 | `planner-replan.md` | planner | contract conflict | current plan + narrow evidence | `commit_plan_delta` |
-| `worker-system.md` | fast worker | bounded implementation | task-local code/debug state | `submit_outcome` |
-| `worker-task.md` | fast worker | first attempt | TaskContract + IR slice | `submit_outcome` |
+| `worker-system.md` | Flash model | bounded implementation | task-local code/debug state | `submit_outcome` |
+| `worker-task.md` | Flash model | first attempt | TaskContract + IR slice | `submit_outcome` |
 | `worker-retry.md` | same worker | verifier/local failure | same contract + new evidence | `submit_outcome` |
-| `strong-worker-system.md` | strong worker | capability escalation | same TaskContract + previous failure | `submit_outcome` |
+| `strong-worker-system.md` | Pro model for implementation | capability escalation | same TaskContract + previous failure | `submit_outcome` |
 
 ## Planner system prompt: why it is restrictive
 
@@ -40,9 +40,9 @@ The runtime reinforces these instructions by withholding edit/write/bash tools.
 
 The worker's value is repeated local execution. Its system prompt makes ordinary syntax/test/debug failure an inner-loop responsibility. A verifier failure is sent back into the same Pi session so useful local observations remain available. Only evidence that invalidates the contract crosses the planner boundary.
 
-## Strong worker is not a second planner
+## Pro implementation role is not a second planner
 
-A larger coding model may be useful when a fast model cannot implement a still-valid contract. The escalation prompt explicitly preserves the same task boundary. If it discovers the contract itself is wrong, it must return `contract_conflict` rather than redesign the project silently.
+A larger coding model may be useful when a Flash model cannot implement a still-valid contract. The escalation prompt explicitly preserves the same task boundary. If it discovers the contract itself is wrong, it must return `contract_conflict` rather than redesign the project silently.
 
 ## Project IR prompts
 

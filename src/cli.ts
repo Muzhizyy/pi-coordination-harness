@@ -11,13 +11,13 @@ function arg(name: string): string | undefined {
 
 async function main(): Promise<void> {
   if (process.argv.includes("--help") || process.argv.length < 3) {
-    console.log(`pi-role-harness run --repo <path> --config <file> (--requirement <text> | --requirement-file <file>)`);
+    console.log(`flashpro-pi run --repo <path> --config <file> (--requirement <text> | --requirement-file <file>)`);
     return;
   }
   const command = process.argv[2];
   if (command !== "run") throw new Error(`Unknown command: ${command}`);
   const repo = resolve(arg("--repo") ?? process.cwd());
-  const configPath = resolve(arg("--config") ?? "role-harness.config.json");
+  const configPath = resolve(arg("--config") ?? "flashpro.config.json");
   const requirement = arg("--requirement") ?? (arg("--requirement-file") ? await readFile(resolve(arg("--requirement-file")!), "utf8") : undefined);
   if (!requirement) throw new Error("Provide --requirement or --requirement-file");
   const config = await loadConfig(configPath);

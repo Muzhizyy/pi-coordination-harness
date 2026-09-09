@@ -12,6 +12,13 @@ test("configuration rejects invalid budgets and accidental string booleans", asy
   try {
     await writeFile(path, JSON.stringify(models));
     assert.equal((await loadConfig(path)).sandbox.enabled, true);
+    const pro = { provider: "example", model: "pro" };
+    const flash = { provider: "example", model: "flash" };
+    await writeFile(path, JSON.stringify({ pro, flash, proWorker: pro }));
+    const configured = await loadConfig(path);
+    assert.deepEqual(configured.planner, pro);
+    assert.deepEqual(configured.worker, flash);
+    assert.deepEqual(configured.strongWorker, pro);
     for (const extra of [
       { budgets: { fastWorkerAttempts: 0 } },
       { budgets: { workerVerificationRetries: -1 } },

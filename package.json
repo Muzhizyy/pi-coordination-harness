@@ -1,11 +1,11 @@
 {
-  "name": "pi-role-harness",
+  "name": "flashpro-pi",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Role-specialized coding-agent runtime on Pi: event-driven planner, persistent coding worker, Project IR, structured contracts, sandboxed execution and deterministic verification.",
+  "description": "Pro and Flash models working together on Pi: persistent project context, scoped coding tasks, verified patches.",
   "bin": {
-    "pi-role-harness": "./dist/cli.js"
+    "flashpro-pi": "./dist/cli.js"
   },
   "scripts": {
     "build": "node scripts/clean.mjs && tsc -p tsconfig.json",
@@ -36,13 +36,14 @@
     "dist/",
     "prompts/",
     "docs/",
-    "role-harness.config.example.json",
+    "flashpro.config.example.json",
     "README.md",
     "README.zh-CN.md",
     "LICENSE",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
-    "SECURITY.md"
+    "SECURITY.md",
+    "assets/"
   ],
   "keywords": [
     "pi",
