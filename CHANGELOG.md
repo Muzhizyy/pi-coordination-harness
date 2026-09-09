@@ -10,6 +10,7 @@ See `docs/VALIDATION.md` for the exact verification performed. This entry does n
 
 ## Branding and documentation update — Unreleased
 
-- New project identity and English/Chinese README presentation.
+- Adopt Pi Coordination Harness as the project name, `pi-coordination-harness` as the package/CLI, and `pi-coordination.config.json` as the default configuration.
+- English/Chinese README presentation with synchronized names and examples.
 - Pro / Flash terminology for the collaboration projects.
 - Local vector header artwork, concrete usage examples, and revised quick starts.

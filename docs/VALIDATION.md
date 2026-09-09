@@ -31,5 +31,5 @@ GitHub CI has been configured but has not run on GitHub. No remote repository or
 
 ## Branding update / 命名与展示更新
 
-The package and CLI are now `flashpro-pi`; the default config is `flashpro.config.json`. Public configuration accepts `pro`, `flash`, and optional `proWorker`, mapped to the existing internal runtime fields. Previous config field names remain supported. Type checking, all 11 tests (including Pro / Flash configuration), clean build, CLI help, and package inventory checks passed.
-包名和 CLI 改为 `flashpro-pi`，默认配置名改为 `flashpro.config.json`。公开配置使用 `pro`、`flash`、可选 `proWorker`，并兼容原字段。类型检查、11 个测试、构建、CLI 帮助与包清单检查通过。
+The package and CLI are now `pi-coordination-harness`; the default config is `pi-coordination.config.json`. Public configuration accepts `pro`, `flash`, and optional `proWorker`, mapped to the existing internal runtime fields. Previous config field names remain supported. Type checking, all 11 tests (including Pro / Flash configuration), clean build, CLI help, and package inventory checks passed.
+包名和 CLI 改为 `pi-coordination-harness`，默认配置名改为 `pi-coordination.config.json`。公开配置使用 `pro`、`flash`、可选 `proWorker`，并兼容原字段。类型检查、11 个测试、构建、CLI 帮助与包清单检查通过。

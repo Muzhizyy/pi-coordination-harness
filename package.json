@@ -1,11 +1,11 @@
 {
-  "name": "flashpro-pi",
+  "name": "pi-coordination-harness",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Pro and Flash models working together on Pi: persistent project context, scoped coding tasks, verified patches.",
   "bin": {
-    "flashpro-pi": "./dist/cli.js"
+    "pi-coordination-harness": "./dist/cli.js"
   },
   "scripts": {
     "build": "node scripts/clean.mjs && tsc -p tsconfig.json",
@@ -36,7 +36,7 @@
     "dist/",
     "prompts/",
     "docs/",
-    "flashpro.config.example.json",
+    "pi-coordination.config.example.json",
     "README.md",
     "README.zh-CN.md",
     "LICENSE",

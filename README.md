@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/hero.svg" alt="FlashPro Pi" width="100%" />
+  <img src="assets/hero.svg" alt="Pi Coordination Harness" width="100%" />
 </p>
 
-<h1 align="center">FlashPro Pi</h1>
+<h1 align="center">Pi Coordination Harness</h1>
 <p align="center"><strong>Pro + Flash. From a task to a verified patch.</strong></p>
 <p align="center">
   <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a>
@@ -13,9 +13,9 @@
 </p>
 
 
-**FlashPro Pi turns Pro / Flash collaboration into a coding workflow you can run from the terminal.** Give it a repository and a requirement: Pro shapes the work, Flash implements it, and verification gates the patch you receive.
+**Pi Coordination Harness turns Pro / Flash collaboration into a coding workflow you can run from the terminal.** Give it a repository and a requirement: Pro shapes the work, Flash implements it, and verification gates the patch you receive.
 
-Persistent project context, task contracts, isolated Git worktrees, model handoffs, and patch output are coordinated by the runtime. The same collaboration approach is available as the **FlashPro** Agent Skill for other coding hosts.
+Persistent project context, task contracts, isolated Git worktrees, model handoffs, and patch output are coordinated by the runtime. The same collaboration approach is available as the **Model Coordination Skill** Agent Skill for other coding hosts.
 
 <p align="center"><a href="#what-you-get">What you get</a> · <a href="#quick-start">Quick start</a> · <a href="#follow-a-task-through-the-runtime">The workflow</a> · <a href="#inspect-the-result">Your result</a></p>
 
@@ -43,12 +43,12 @@ Download or clone this repository, then run:
 ```sh
 npm ci
 npm run build
-cp flashpro.config.example.json flashpro.config.json
+cp pi-coordination.config.example.json pi-coordination.config.json
 ```
 
 ### 2. Choose your Pro and Flash models
 
-Edit `flashpro.config.json` using provider/model IDs available in your Pi environment. The minimal shape is:
+Edit `pi-coordination.config.json` using provider/model IDs available in your Pi environment. The minimal shape is:
 
 ```json
 {
@@ -66,7 +66,7 @@ Edit `flashpro.config.json` using provider/model IDs available in your Pi enviro
 }
 ```
 
-Replace the model placeholders and set the verification commands for **your target project**. The [full example](flashpro.config.example.json) includes sandbox and retry settings. Add `proWorker` when you want a Pro model to handle implementation escalations. Pro and Flash describe roles; they do not lock you to a provider.
+Replace the model placeholders and set the verification commands for **your target project**. The [full example](pi-coordination.config.example.json) includes sandbox and retry settings. Add `proWorker` when you want a Pro model to handle implementation escalations. Pro and Flash describe roles; they do not lock you to a provider.
 
 ### 3. Give it a task
 
@@ -75,11 +75,11 @@ Use a target Git repository with at least one commit. From the harness directory
 ```sh
 node dist/cli.js run \
   --repo /path/to/your-project \
-  --config ./flashpro.config.json \
+  --config ./pi-coordination.config.json \
   --requirement "Add cursor pagination to search while preserving existing response fields"
 ```
 
-For a longer brief, use `--requirement-file request.md`. Prefer a named command? Run `npm link` and use `flashpro-pi run ...`.
+For a longer brief, use `--requirement-file request.md`. Prefer a named command? Run `npm link` and use `pi-coordination-harness run ...`.
 
 ## Follow a task through the runtime
 

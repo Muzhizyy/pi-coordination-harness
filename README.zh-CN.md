@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/hero.svg" alt="FlashPro Pi" width="100%" />
+  <img src="assets/hero.svg" alt="Pi Coordination Harness" width="100%" />
 </p>
 
-<h1 align="center">FlashPro Pi</h1>
+<h1 align="center">Pi Coordination Harness</h1>
 <p align="center"><strong>Pro 与 Flash 协作，把需求推进成可验证的补丁。</strong></p>
 <p align="center">
   <a href="README.md">English</a> · <strong>简体中文</strong>
@@ -13,9 +13,9 @@
 </p>
 
 
-**FlashPro Pi 将 Pro / Flash 协作变成一套可以从终端运行的开发流程。** 给它一个仓库和一项需求：Pro 组织任务，Flash 推进实现，通过验证后交付补丁。
+**Pi Coordination Harness 将 Pro / Flash 协作变成一套可以从终端运行的开发流程。** 给它一个仓库和一项需求：Pro 组织任务，Flash 推进实现，通过验证后交付补丁。
 
-项目知识、任务契约、独立 Git worktree、模型交接与补丁输出由运行框架串联起来。同一套协作思路也提供 **FlashPro** Agent Skill，方便在其他编码宿主中使用。
+项目知识、任务契约、独立 Git worktree、模型交接与补丁输出由运行框架串联起来。同一套协作思路也提供 **Model Coordination Skill** Agent Skill，方便在其他编码宿主中使用。
 
 <p align="center"><a href="#你能得到什么">核心能力</a> · <a href="#快速开始">快速开始</a> · <a href="#一项需求如何流转">协作流程</a> · <a href="#查看与应用结果">交付结果</a></p>
 
@@ -43,12 +43,12 @@
 ```sh
 npm ci
 npm run build
-cp flashpro.config.example.json flashpro.config.json
+cp pi-coordination.config.example.json pi-coordination.config.json
 ```
 
 ### 2. 选择 Pro 与 Flash 模型
 
-编辑 `flashpro.config.json`，填入自己在 Pi 环境中可用的供应商和模型 ID。最小配置如下：
+编辑 `pi-coordination.config.json`，填入自己在 Pi 环境中可用的供应商和模型 ID。最小配置如下：
 
 ```json
 {
@@ -66,7 +66,7 @@ cp flashpro.config.example.json flashpro.config.json
 }
 ```
 
-替换模型占位符，将验证命令改为**目标项目实际使用的命令**。[完整示例](flashpro.config.example.json)还包含沙箱与重试设置；如需由 Pro 接手复杂实现，可配置 `proWorker`。Pro 和 Flash 表示角色，不绑定特定供应商。
+替换模型占位符，将验证命令改为**目标项目实际使用的命令**。[完整示例](pi-coordination.config.example.json)还包含沙箱与重试设置；如需由 Pro 接手复杂实现，可配置 `proWorker`。Pro 和 Flash 表示角色，不绑定特定供应商。
 
 ### 3. 提出需求
 
@@ -75,11 +75,11 @@ cp flashpro.config.example.json flashpro.config.json
 ```sh
 node dist/cli.js run \
   --repo /path/to/your-project \
-  --config ./flashpro.config.json \
+  --config ./pi-coordination.config.json \
   --requirement "为搜索增加游标分页，保持现有响应字段兼容"
 ```
 
-长需求可以使用 `--requirement-file request.md`。希望直接使用命令名时，运行 `npm link`，之后使用 `flashpro-pi run ...`。
+长需求可以使用 `--requirement-file request.md`。希望直接使用命令名时，运行 `npm link`，之后使用 `pi-coordination-harness run ...`。
 
 ## 一项需求如何流转
 

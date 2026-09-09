@@ -1,6 +1,6 @@
 # Architecture
 
-FlashPro Pi is a role-specialized coding-agent control plane built on top of Pi primitives rather than Pi's default single-agent semantics.
+Pi Coordination Harness is a role-specialized coding-agent control plane built on top of Pi primitives rather than Pi's default single-agent semantics.
 
 ## Top-level flow
 
