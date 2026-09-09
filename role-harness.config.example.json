@@ -1,0 +1,31 @@
+{
+  "planner": {
+    "provider": "anthropic",
+    "model": "claude-opus-4-5",
+    "thinkingLevel": "high"
+  },
+  "worker": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "thinkingLevel": "medium"
+  },
+  "strongWorker": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "thinkingLevel": "medium"
+  },
+  "sandbox": {
+    "enabled": true,
+    "allowNetwork": false,
+    "allowedDomains": [],
+    "denyRead": ["~/.ssh", "~/.aws", "~/.gnupg"],
+    "denyWrite": [".env", ".env.*", "*.pem", "*.key"]
+  },
+  "budgets": {
+    "workerVerificationRetries": 2,
+    "fastWorkerAttempts": 2
+  },
+  "verification": {
+    "finalCommands": []
+  }
+}

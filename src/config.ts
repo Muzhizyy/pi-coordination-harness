@@ -1,0 +1,59 @@
+import { resolve } from "node:path";
+import { readJson } from "./utils/fs.js";
+import type { HarnessConfig } from "./types.js";
+
+const DEFAULTS: Omit<HarnessConfig, "planner" | "worker"> = {
+  sandbox: {
+    enabled: true,
+    allowNetwork: false,
+    allowedDomains: [],
+    denyRead: ["~/.ssh", "~/.aws", "~/.gnupg"],
+    denyWrite: [".env", ".env.*", "*.pem", "*.key"],
+  },
+  budgets: {
+    workerVerificationRetries: 2,
+    fastWorkerAttempts: 2,
+  },
+  verification: { finalCommands: [] },
+};
+
+export async function loadConfig(path: string): Promise<HarnessConfig> {
+  const raw = await readJson<Partial<HarnessConfig>>(resolve(path));
+  if (!raw || typeof raw !== "object" || !raw.planner || !raw.worker) {
+    throw new Error("Config must define planner and worker model profiles.");
+  }
+  const config: HarnessConfig = {
+    planner: raw.planner,
+    worker: raw.worker,
+    strongWorker: raw.strongWorker,
+    sandbox: { ...DEFAULTS.sandbox, ...raw.sandbox },
+    budgets: { ...DEFAULTS.budgets, ...raw.budgets },
+    verification: { ...DEFAULTS.verification, ...raw.verification },
+  };
+  for (const [role, profile] of Object.entries({ planner: config.planner, worker: config.worker, strongWorker: config.strongWorker })) {
+    if (profile === undefined && role === "strongWorker") continue;
+    if (!profile || typeof profile.provider !== "string" || !profile.provider.trim() || typeof profile.model !== "string" || !profile.model.trim()) {
+      throw new Error(`${role} must specify non-empty provider and model strings`);
+    }
+    if (profile.thinkingLevel !== undefined && !["off", "low", "medium", "high"].includes(profile.thinkingLevel)) {
+      throw new Error(`${role}.thinkingLevel must be off, low, medium, or high`);
+    }
+  }
+  for (const [key, minimum] of [["fastWorkerAttempts", 1], ["workerVerificationRetries", 0]] as const) {
+    if (!Number.isSafeInteger(config.budgets[key]) || config.budgets[key] < minimum) {
+      throw new Error(`budgets.${key} must be an integer >= ${minimum}`);
+    }
+  }
+  for (const key of ["enabled", "allowNetwork"] as const) {
+    if (typeof config.sandbox[key] !== "boolean") throw new Error(`sandbox.${key} must be boolean`);
+  }
+  for (const [label, value] of Object.entries({
+    allowedDomains: config.sandbox.allowedDomains,
+    denyRead: config.sandbox.denyRead,
+    denyWrite: config.sandbox.denyWrite,
+    finalCommands: config.verification.finalCommands,
+  })) {
+    if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) throw new Error(`${label} must be a string array`);
+  }
+  return config;
+}
