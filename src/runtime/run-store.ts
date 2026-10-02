@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import type { EvidenceRef, ProjectPlan, RunMetrics, TaskContract, VerificationResult, WorkerOutcome } from "../types.js";
+import type { EvidencePacket, EvidenceRequest, EvidenceRef, PlanDelta, PlannerEvent, ProjectPlan, RunMetrics, TaskContract, VerificationResult, WorkerOutcome } from "../types.js";
+import type { ProjectIrSnapshot } from "../project/project-ir.js";
 import { ensureDir, writeJson, writeText } from "../utils/fs.js";
 
 export class RunStore {
@@ -24,9 +25,17 @@ export class RunStore {
   }
 
   writePlan(plan: ProjectPlan): Promise<void> { return writeJson(join(this.dir, "plan.json"), plan); }
-  writeTask(task: TaskContract): Promise<void> { return writeJson(join(this.dir, "tasks", `${task.id}.json`), task); }
+  async writeTask(task: TaskContract): Promise<void> {
+    await writeJson(join(this.dir, "tasks", `${task.id}-v${task.version}.json`), task);
+    await writeJson(join(this.dir, "tasks", `${task.id}.json`), task);
+  }
+  writePlanDelta(delta: PlanDelta, sequence: number): Promise<void> { return writeJson(join(this.dir, `plan-delta-${sequence}.json`), delta); }
+  writePlannerEvent(event: PlannerEvent, sequence: number): Promise<void> { return writeJson(join(this.dir, `planner-event-${sequence}.json`), event); }
+  writeArchitectureView(reason: string, sequence: number, view: unknown): Promise<void> { return writeJson(join(this.dir, `planner-view-${sequence}-${reason}.json`), view); }
+  writeProjectSnapshot(ir: ProjectIrSnapshot): Promise<void> { return writeJson(join(this.dir, "project-snapshot.json"), ir); }
+  writeEvidencePacket(request: EvidenceRequest, packet: EvidencePacket): Promise<void> { return writeJson(join(this.dir, "evidence", `${packet.id}.json`), { request, packet }); }
   writeOutcome(outcome: WorkerOutcome, attempt: number): Promise<void> {
-    return writeJson(join(this.dir, "outcomes", `${outcome.taskId}-attempt-${attempt}.json`), outcome);
+    return writeJson(join(this.dir, "outcomes", `${outcome.taskId}-v${outcome.contractVersion}-attempt-${attempt}.json`), outcome);
   }
   writeEvidence(evidence: EvidenceRef): Promise<void> { return writeJson(join(this.dir, "evidence", `${evidence.id}.json`), evidence); }
   writeVerification(name: string, result: VerificationResult): Promise<void> {

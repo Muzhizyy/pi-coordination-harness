@@ -28,6 +28,8 @@ export function createCommitProjectIrTool(capture: (value: {
   capabilities: ProjectIrIndex["capabilities"];
   constraints: ProjectIrIndex["constraints"];
   unresolved: string[];
+  dependencies?: ProjectIrIndex["dependencies"];
+  decisions?: ProjectIrIndex["decisions"];
 }) => void) {
   return defineTool({
     name: "commit_project_ir",
@@ -38,15 +40,19 @@ export function createCommitProjectIrTool(capture: (value: {
       modules: Type.Array(Type.Object({
         id: Type.String(), path: Type.String(), responsibility: Type.String(),
         evidence: Type.Array(Type.String()), confidence: Type.Union([Type.Literal("high"), Type.Literal("medium"), Type.Literal("low")]),
+        nonResponsibilities: Type.Array(Type.String()), publicInterfaces: Type.Array(Type.String()), tests: Type.Array(Type.String()),
       })),
       interfaces: Type.Array(Type.Object({
         id: Type.String(), name: Type.String(), kind: Type.String(), location: Type.String(), summary: Type.String(), evidence: Type.Array(Type.String()),
+        owner: Type.String(), stability: Type.Union([Type.Literal("public"), Type.Literal("internal")]),
       })),
       capabilities: Type.Array(Type.Object({
         id: Type.String(), name: Type.String(), summary: Type.String(), entrypoints: Type.Array(Type.String()), examples: Type.Array(Type.String()), evidence: Type.Array(Type.String()),
       })),
       constraints: Type.Array(Type.Object({ id: Type.String(), summary: Type.String(), evidence: Type.Array(Type.String()) })),
       unresolved: Type.Array(Type.String()),
+      dependencies: Type.Array(Type.Object({ from: Type.String(), to: Type.String(), kind: Type.Literal("semantic"), evidence: Type.Array(Type.String()) })),
+      decisions: Type.Array(Type.Object({ id: Type.String(), area: Type.String(), summary: Type.String(), rationale: Type.String(), rejectedAlternatives: Type.Array(Type.String()), evidence: Type.Array(Type.String()) })),
     }),
     execute: async (_id, params) => {
       capture(params);

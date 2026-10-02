@@ -1,23 +1,18 @@
-A worker event requires project-level judgment. Make the smallest plan change justified by evidence.
+A project-level event requires judgment. Make the smallest justified plan change.
 
-## Original requirement
+## Requirement
 {{REQUIREMENT}}
 
-## Architecture IR
-{{ARCHITECTURE}}
-
-## Project index
-{{PROJECT_INDEX}}
+## Architecture View
+{{ARCHITECTURE_VIEW}}
 
 ## Current plan
 {{CURRENT_PLAN}}
 
-## Triggering worker outcome
+## Project event
 {{TRIGGER}}
 
-## Relevant evidence
-{{EVIDENCE}}
-
-Determine whether the contract/decomposition/interface assumption is wrong. Preserve unaffected tasks. V1 cannot retroactively cancel or invalidate a task that has already been independently accepted and integrated; prefer forward corrective tasks if an accepted change needs adjustment. If targeted source evidence is needed, inspect only the disputed area. Do not debug local implementation details.
-
-Call `commit_plan_delta` exactly once.
+Evidence IDs identify saved packets, not a worker transcript. Use request_evidence
+to verify disputed facts against this view's revision. Do not debug implementation
+failures. Preserve unaffected tasks. Accepted tasks cannot be retroactively cancelled
+or invalidated; use forward corrective tasks. Call commit_plan_delta exactly once.

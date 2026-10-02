@@ -1,19 +1,12 @@
 Create the project-level execution plan for this requirement.
 
-## Original requirement
+## Requirement
 {{REQUIREMENT}}
 
-## Architecture IR
-{{ARCHITECTURE}}
+## Architecture View
+{{ARCHITECTURE_VIEW}}
 
-## Project index
-{{PROJECT_INDEX}}
-
-## Durable decisions
-{{DECISIONS}}
-
-Before committing, use targeted read-only inspection only if an unresolved fact can materially change task boundaries or acceptance. Prefer the repository's existing capabilities.
-
-Task contracts must be self-contained for a worker that will NOT receive this planning conversation. Verification commands must be real commands appropriate for this repository, not prose.
-
-Call `commit_plan` when ready.
+Use architecture tools for missing global facts and request_evidence for scoped
+decision-relevant uncertainty. Reuse existing capabilities. Task contracts must
+be self-contained for a worker that does not receive this conversation. Include
+real verification commands and compatibility constraints. Call commit_plan once.

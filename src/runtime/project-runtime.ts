@@ -11,6 +11,8 @@ import { emptyRunMetrics } from "./metrics.js";
 import { RunStore } from "./run-store.js";
 import { applyPlanDelta, makeContract, readyTasks, validatePlan } from "./plan.js";
 import { workerProjectContext } from "./context.js";
+import { KnowledgeBuilder } from "../project/knowledge-builder.js";
+import { assertActiveOutcome, projectEvent } from "./events.js";
 
 export interface RunResult {
   runId: string;
@@ -31,12 +33,17 @@ export class ProjectRuntime {
     const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
     const runStore = new RunStore(this.repo, runId);
     await runStore.init(requirement, baseRevision);
-    const planner = new PlannerRuntime(this.repo, this.config.planner, this.pi, this.metrics);
-    await planner.ensureProjectIr();
-    let plan = await planner.plan(requirement);
+    let ir = await new KnowledgeBuilder(this.repo, this.config.scout ?? this.config.worker, this.pi, this.metrics, this.config.sandbox).ensure();
+    let decisionSequence = 0;
+    const plannerArtifacts = {
+      evidence: runStore.writeEvidencePacket.bind(runStore),
+      view: async (reason: string, view: unknown) => runStore.writeArchitectureView(reason, ++decisionSequence, view),
+    };
+    const planner = new PlannerRuntime(this.repo, this.config, this.pi, this.metrics, plannerArtifacts);
+    let plan = await planner.plan(requirement, ir);
     validatePlan(plan);
     await runStore.writePlan(plan);
-    const ir = await new ProjectIrStore(this.repo).load();
+    await runStore.writeProjectSnapshot(ir);
     const workspace = new WorkspaceManager(this.repo, runId);
     const integration = await workspace.createIntegration(baseRevision);
     const verifier = new Verifier(this.config);
@@ -65,9 +72,7 @@ export class ProjectRuntime {
           attempts++;
           this.metrics.taskAttempts[task.id] = (this.metrics.taskAttempts[task.id] ?? 0) + 1;
           while (true) {
-            if (outcome.taskId !== contract.id || outcome.contractVersion !== contract.version) {
-              throw new Error("Worker outcome does not match the active task contract");
-            }
+            assertActiveOutcome(outcome, contract);
             await runStore.writeOutcome(outcome, attempts);
             if (outcome.status === "candidate_ready") {
               const verification = await verifier.verifyTask(taskPath, contract, (command) => session.execSandboxed(command));
@@ -97,15 +102,18 @@ export class ProjectRuntime {
               continue;
             }
             if (outcome.status === "contract_conflict") {
-              const delta = await planner.replan({ requirement, currentPlan: plan, taskOutcome: outcome, evidence: outcome.evidence.join("\n") });
+              const event = projectEvent(outcome)!;
+              await runStore.writePlannerEvent(event, decisionSequence + 1);
+              const delta = await new PlannerRuntime(integration, this.config, this.pi, this.metrics, plannerArtifacts).replan({ requirement, ir, currentPlan: plan, event });
               const retroactive = [...delta.cancelledTaskIds, ...delta.invalidatedTaskIds, ...delta.revisedTasks.map((task) => task.id)].filter((id) => accepted.has(id));
               if (retroactive.length > 0) {
                 throw new Error(`V1 cannot retroactively cancel/invalidate accepted tasks: ${retroactive.join(", ")}. Start a new run or add explicit rollback support.`);
               }
-              if (this.metrics.plannerWakeups.filter((event) => event.reason === "REPLAN_CONTRACT_CONFLICT").length > 8) {
+              if (this.metrics.plannerWakeups.filter((event) => event.reason === "CONTRACT_CONFLICT").length > 8) {
                 throw new Error("Contract conflict replan limit exceeded (8)");
               }
               plan = applyPlanDelta(plan, delta);
+              await runStore.writePlanDelta(delta, decisionSequence);
               validatePlan(plan);
               await runStore.writePlan(plan);
               for (const revised of delta.revisedTasks) {
