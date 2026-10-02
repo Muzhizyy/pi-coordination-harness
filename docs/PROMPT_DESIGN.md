@@ -1,51 +1,32 @@
-# Prompt Architecture
+# Prompt design — V0.2
 
-The prompts are part of the runtime protocol. They are intentionally role- and phase-specific instead of sharing one universal coding-agent system prompt.
+Prompts define the roles used inside the harness. They are not instructions for
+another agent to develop this project. Runtime tool allowlists, context projection,
+terminal hooks and event routing implement the boundaries described by the prompts.
 
-## Design principles
+| Role | Prompt objective | Runtime reinforcement |
+| --- | --- | --- |
+| Knowledge Builder | Evidence-backed global responsibilities, stable surfaces, capabilities, invariants and decisions; preserve uncertainty | Fast-model profile, read-only committed snapshot, `commit_project_ir` |
+| Pro Planner | Decide on architecture/task boundaries; ask for missing decision facts | No repository tools; bounded Architecture View and EvidenceRequests; fresh decision session |
+| Evidence Scout | Answer one scoped question with facts, locators, exceptions and uncertainty | Read-only snapshot; bounded structured result; existing-file checks |
+| Flash Worker | Continue inspect/edit/test/repair under one contract | Persistent task session, independent verifier feedback, sandbox and scope checks |
+| Strong Worker | Resolve difficult implementation under the same contract | Worker role/toolset; contract conflict returns to project-event routing |
 
-1. **System prompts define stable role invariants.** They specify what the role owns, what it must ignore, and its termination semantics.
-2. **Invocation prompts carry current state.** Project IR, TaskContract, current plan and verification evidence are injected explicitly rather than hidden in accumulated chat history.
-3. **Structured tools are the exit protocol.** Planner and Worker completion is recognized by tool calls, not prose.
-4. **Planner prompts minimize implementation leakage.** They ask for task boundaries, contracts and architecture decisions, not code for the worker to copy.
-5. **Worker retries preserve local history.** A failed deterministic check is returned to the same session with a retry packet instead of restarting repository understanding.
-6. **Replanning is evidence-scoped.** Only project-level conflict evidence is shown to the planner; worker transcripts remain private to the task session.
+System prompts carry stable role policy. Invocation prompts carry current state:
+architecture projections, TaskContracts, semantic project events and local feedback.
+There is no automatic Planner trajectory injection into Workers or Worker trajectory
+injection into Planner replans.
 
-## Prompt set
+Planner source access is question-based. A semantic request must name the decision
+it can affect. Excerpts require preceding semantic evidence, an explicit ambiguity
+and a small scoped line range. Runtime counters bound the explicit channels;
+semantic claims remain model-generated and can still be incomplete or incorrect.
 
-| Prompt | Role | Trigger | Context center | Required exit |
-|---|---|---|---|---|
-| `project-bootstrap-system.md` | architecture bootstrapper | first repository use | deterministic inventory + targeted source evidence | `commit_project_ir` |
-| `project-bootstrap-request.md` | architecture bootstrapper | first repository use | repository structure | `commit_project_ir` |
-| `project-refresh-request.md` | architecture bootstrapper | Git revision changed | previous IR + changed files | `commit_project_ir` |
-| `planner-system.md` | planner | all planning events | project model / task boundaries | phase commit tool |
-| `planner-initial.md` | planner | new requirement | requirement + IR + decisions | `commit_plan` |
-| `planner-replan.md` | planner | contract conflict | current plan + narrow evidence | `commit_plan_delta` |
-| `worker-system.md` | Flash model | bounded implementation | task-local code/debug state | `submit_outcome` |
-| `worker-task.md` | Flash model | first attempt | TaskContract + IR slice | `submit_outcome` |
-| `worker-retry.md` | same worker | verifier/local failure | same contract + new evidence | `submit_outcome` |
-| `strong-worker-system.md` | Pro model for implementation | capability escalation | same TaskContract + previous failure | `submit_outcome` |
+Every phase ends with a structured commit/outcome tool. Terminal hooks abort after
+capture rather than relying on a prose request to stop. Local verification failures
+retain Worker history. Contract changes require a new version and session, preventing
+old debugging assumptions from silently surviving a replan.
 
-## Planner system prompt: why it is restrictive
-
-The planner's value is global reasoning. Giving it an unrestricted coding loop would turn it back into a normal coding agent and steadily pull implementation logs into expensive context. Therefore the prompt makes three things explicit:
-
-- project-level optimization objective;
-- code inspection only when it can alter task boundaries or acceptance;
-- immediate termination after a structured plan mutation.
-
-The runtime reinforces these instructions by withholding edit/write/bash tools.
-
-## Worker system prompt: why it is persistent
-
-The worker's value is repeated local execution. Its system prompt makes ordinary syntax/test/debug failure an inner-loop responsibility. A verifier failure is sent back into the same Pi session so useful local observations remain available. Only evidence that invalidates the contract crosses the planner boundary.
-
-## Pro implementation role is not a second planner
-
-A larger coding model may be useful when a Flash model cannot implement a still-valid contract. The escalation prompt explicitly preserves the same task boundary. If it discovers the contract itself is wrong, it must return `contract_conflict` rather than redesign the project silently.
-
-## Project IR prompts
-
-The bootstrap prompt intentionally asks for durable architecture, interfaces, reusable capabilities and constraints instead of a prose summary of every directory. The refresh prompt receives the previous IR and Git changed-file set and asks for the complete refreshed IR while minimizing architecture churn.
-
-This makes repository understanding an amortizable project asset rather than a repeated hidden prelude to every issue.
+The canonical prompts are Markdown files in `prompts/`; [PROMPT_SUITE.md](PROMPT_SUITE.md)
+is a synchronized review copy. [ARCHITECTURE.md](ARCHITECTURE.md) explains control flow;
+[PROTOCOL.md](PROTOCOL.md) lists interfaces and executable conformance checks.

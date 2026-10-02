@@ -1,9 +1,9 @@
 {
   "name": "pi-coordination-harness",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Pro and Flash models working together on Pi: persistent project context, scoped coding tasks, verified patches.",
+  "description": "Role-specialized Pro/Flash runtime on Pi: architecture views, scoped evidence, persistent task loops and verified patches.",
   "bin": {
     "pi-coordination-harness": "./dist/cli.js"
   },

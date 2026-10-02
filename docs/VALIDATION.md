@@ -1,5 +1,45 @@
 # Validation / 验证记录
 
+## V0.2 architecture/runtime update — 2026-10-02
+
+Validated in the task workspace with Node 24.19.0, npm 11.9.0 and Git 2.51.1.
+Pinned runtime dependencies were installed with `npm ci`.
+
+| Check | Result |
+| --- | --- |
+| `npm run check` | TypeScript check, all 29 tests and clean build passed |
+| `node dist/cli.js --help` | Passed without a model call |
+| `npm pack --dry-run --json` | 126 entries; new compiled roles, declarations, Scout prompt and protocol documentation included |
+| `git diff --check` | Passed |
+| Prompt suite synchronization | All 11 canonical prompt files mirrored in `docs/PROMPT_SUITE.md` |
+
+Tests exercise architecture projection and truncation, committed-only inventories,
+read-only fast knowledge construction/cache/refresh, Planner tool boundaries,
+terminal capture, scoped evidence and raw budgets, unchanged Worker retries,
+implementation escalation, contract invalidation and PlanDelta validation.
+Two orchestration scenarios use real temporary Git worktrees with simulated model
+sessions: successful candidate acceptance and contract-conflict replan with a fresh
+v2 Worker. Both verify patch applicability, checkout preservation, IR refresh,
+Planner wakeups, artifact history and workspace cleanup. Final verification tests
+reject tracked edits and new unignored files outside the committed patch state.
+
+本次通过类型检查、29 个测试和干净构建。真实 Git worktree 配合模拟模型会话验证了
+正常验收与契约冲突重规划，并检查补丁可应用、原源码保持原样、IR 刷新及历史记录。
+这些测试没有使用真实模型凭据。
+
+Not validated: authenticated model/provider calls, actual OS sandbox enforcement,
+model quality on large repositories, cost/latency gains, or full program-analysis
+coverage. Token budgets use conservative UTF-8 byte proxies; explicit excerpt
+statistics are not a measurement of every raw-code token a model might include
+in a semantic field. Project IR claims remain model-produced and uncertainty-aware.
+The repository remains an experimental serial harness; see [architecture](ARCHITECTURE.md).
+
+未验证真实供应商调用、OS 沙箱实际约束、复杂仓库语义质量和费用/延迟收益。
+源码预算统计只覆盖显式摘录通道，不能据此宣称所有语义字段都没有源码泄漏。
+
+The following sections retain the original V0.1 validation history.
+
+
 Date: 2026-09-10 (Asia/Shanghai). Source snapshot prepared on Linux/WSL. JavaScript checks used Node 24.15.0; DSH used pnpm 11.7.0.
 日期：2026-09-10，Asia/Shanghai。本次验证在 Linux/WSL 环境完成。
 

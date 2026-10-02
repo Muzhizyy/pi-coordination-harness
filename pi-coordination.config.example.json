@@ -36,5 +36,10 @@
   },
   "verification": {
     "finalCommands": []
+  },
+  "plannerContext": {
+    "architectureTokens": 12000,
+    "rawCodeTokens": 2000,
+    "evidenceRequests": 6
   }
 }

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 — Unreleased
+
+- Separate fast Knowledge Builder and Evidence Scout roles from Pro planning.
+- Add Architecture IR v2, dependency indexing, decision-oriented bounded views and local Worker slices.
+- Remove raw repository tools from Planner; add architecture queries and scoped, revision-pinned evidence with explicit budgets.
+- Enforce terminal artifact capture and split project decision events from persistent task execution/retry loops.
+- Refresh accepted integration knowledge without waking Planner; reject stale contract outcomes and resume only unchanged contracts.
+- Preserve contract versions, project events, plan deltas, evidence packets and actual architecture projections in run artifacts.
+- Add simulated-model conformance tests with real Git worktrees and patch validation; update English/Chinese docs and protocol reference.
+
+This is a source update, not a published package release.
+
 ## 0.1.0 — Unreleased
 
 - Prepare the initial public source distribution with English and Chinese documentation.
