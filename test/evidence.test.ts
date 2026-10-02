@@ -31,6 +31,8 @@ test("evidence is pinned to a commit and excerpts obey scope, ambiguity, request
     assert.equal(packet.revision, revision);
     assert.equal(scouts, 0);
     const excerpt = { ...request, types: ["excerpt"] as const, excerpt: { file: "src/main.ts", startLine: 1, endLine: 1, ambiguity: "Constant versus callable surface" } };
+    const firstRaw = new EvidenceResolver(root, index, new PlannerContextBudget(config.plannerContext), async () => { throw new Error("must not scout"); });
+    await assert.rejects(firstRaw.resolve({ ...excerpt, types: ["excerpt"] }), /semantic evidence/);
     const raw = await resolver.resolve({ ...excerpt, types: ["excerpt"] });
     assert.equal(raw.excerpts[0].source, "export const API = 1;");
     assert.ok(!JSON.stringify(raw).includes("DIRTY_SENTINEL"));

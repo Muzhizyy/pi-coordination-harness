@@ -38,6 +38,8 @@ export class Verifier {
   async verifyFinal(workspace: string, commandsToRun: string[]): Promise<VerificationResult> {
     const commands: VerificationResult["commands"] = [];
     const failures: string[] = [];
+    const before = await git(workspace, ["ls-files", "--others", "--exclude-standard", "-z"]);
+    if (before.exitCode !== 0) throw new Error("Cannot inspect final integration files");
     for (const command of commandsToRun) {
       const result = await this.execInSandbox(workspace, command);
       commands.push({ command, ...result });
@@ -46,6 +48,10 @@ export class Verifier {
     const tracked = await git(workspace, ["diff", "--name-only", "HEAD"]);
     if (tracked.exitCode !== 0) throw new Error("Cannot inspect final integration state");
     if (tracked.stdout.trim()) failures.push("Final verification modified tracked source; refusing to export a patch for a different state");
+    const after = await git(workspace, ["ls-files", "--others", "--exclude-standard", "-z"]);
+    if (after.exitCode !== 0) throw new Error("Cannot inspect final integration files");
+    const existing = new Set(before.stdout.split("\0"));
+    if (after.stdout.split("\0").some((file) => file && !existing.has(file))) failures.push("Final verification created unignored files outside the committed patch; commit changes in a task before export");
     return { ok: failures.length === 0, changedFiles: [], commands, failures };
   }
 

@@ -1,5 +1,5 @@
 import { basename, extname } from "node:path";
-import { gitOk } from "../utils/exec.js";
+import { git, gitOk } from "../utils/exec.js";
 
 const MANIFEST_NAMES = new Set([
   "package.json", "pyproject.toml", "requirements.txt", "uv.lock", "poetry.lock",
@@ -24,8 +24,9 @@ export async function repositoryHead(repo: string): Promise<string> {
 }
 
 export async function trackedFiles(repo: string): Promise<string[]> {
-  const out = await gitOk(repo, ["ls-tree", "-r", "--name-only", "-z", "HEAD"]);
-  return out ? out.split("\0").filter(Boolean) : [];
+  const result = await git(repo, ["ls-tree", "-r", "--name-only", "-z", "HEAD"]);
+  if (result.exitCode !== 0) throw new Error("Cannot enumerate committed repository files");
+  return result.stdout.split("\0").filter(Boolean);
 }
 
 export async function deterministicInventory(repo: string): Promise<{

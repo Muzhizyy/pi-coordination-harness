@@ -26,6 +26,10 @@ test("configuration rejects invalid budgets and accidental string booleans", asy
       { sandbox: { enabled: "false" } },
       { verification: { finalCommands: "npm test" } },
       { worker: { provider: "", model: "worker" } },
+      { scout: { provider: "", model: "scout" } },
+      { plannerContext: { architectureTokens: 100 } },
+      { plannerContext: { rawCodeTokens: -1 } },
+      { plannerContext: { evidenceRequests: "six" } },
     ]) {
       await writeFile(path, JSON.stringify({ ...models, ...extra }));
       await assert.rejects(loadConfig(path));

@@ -38,3 +38,22 @@ test("verification includes staged and untracked edits after check commands", as
     assert.ok(stagedOutside.failures.includes("Write-scope violation: outside.txt"));
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("final verification rejects tracked edits and newly introduced unignored files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "final-verify-"));
+  try {
+    await gitOk(root, ["init"]);
+    await writeFile(join(root, "base.txt"), "base\n");
+    await gitOk(root, ["add", "."]);
+    await gitOk(root, ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "base"]);
+    const verifier = new Verifier({ sandbox: { enabled: false } } as HarnessConfig);
+    assert.equal((await verifier.verifyFinal(root, [])).ok, true);
+    const edited = await verifier.verifyFinal(root, ["printf 'changed\\n' > base.txt"]);
+    assert.equal(edited.ok, false);
+    assert.ok(edited.failures.some((f) => f.includes("tracked source")));
+    await gitOk(root, ["restore", "base.txt"]);
+    const generated = await verifier.verifyFinal(root, ["printf 'new\\n' > new.txt"]);
+    assert.equal(generated.ok, false);
+    assert.ok(generated.failures.some((f) => f.includes("unignored files")));
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

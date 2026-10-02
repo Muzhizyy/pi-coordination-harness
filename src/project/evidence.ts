@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Type } from "typebox";
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import type { EvidencePacket, EvidenceRef, EvidenceRequest, HarnessConfig, ModelProfile, ProjectIrIndex, RunMetrics } from "../types.js";
@@ -58,7 +58,9 @@ export function createEvidenceScout(repo: string, profile: ModelProfile, pi: PiR
         for (const claim of params.claims) for (const ref of claim.evidence) {
           const file = ref.locator.replace(/:\d+(?:-\d+)?$/, "");
           if (pathMatchesPattern(file, sandbox.denyRead)) throw new Error("Evidence references a protected path");
-          await readRevisionFile(repo, revision, file);
+          const source = await readRevisionFile(repo, revision, file);
+          const range = ref.locator.match(/:(\d+)(?:-(\d+))?$/);
+          if (range && (Number(range[1]) < 1 || Number(range[2] ?? range[1]) < Number(range[1]) || Number(range[2] ?? range[1]) > source.split("\n").length)) throw new Error("Evidence reference has an invalid line range");
         }
         captured = { ...params, claims: params.claims.map((c) => ({ ...c, evidence: c.evidence.map((e) => ({ ...e, revision })) })) };
         return { content: [{ type: "text", text: "Evidence captured; stop." }], details: {} };
@@ -96,8 +98,8 @@ export class EvidenceResolver {
       await readRevisionFile(this.repo, this.index.revision, file);
     }
     this.budget.request();
-    const refs = (locators: string[], statement: string): EvidenceRef[] => locators.map((locator, n) => ({
-      id: `IR-${n}`, kind: "source", locator, summary: statement, revision: this.index.revision,
+    const refs = (locators: string[], statement: string): EvidenceRef[] => locators.map((locator) => ({
+      id: `IR-${createHash("sha256").update(`${this.index.revision}:${locator}`).digest("hex").slice(0, 16)}`, kind: "source", locator, summary: statement, revision: this.index.revision,
     }));
     const packet: EvidencePacket = { id: `E-${randomUUID()}`, revision: this.index.revision, question: request.question,
       claims: [], confidence: "medium", exceptions: [], unresolved: [], excerpts: [] };

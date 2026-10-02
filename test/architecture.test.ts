@@ -65,3 +65,17 @@ test("IR v2 records committed import edges and rejects saving against a differen
     await assert.rejects(store.saveSemantic({ ...input, revision: "b".repeat(40) }), /changed/);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("inventory preserves unusual paths and excludes uncommitted index additions", async () => {
+  const root = await mkdtemp(join(tmpdir(), "inventory-"));
+  try {
+    const { trackedFiles } = await import("../src/project/repository.js");
+    await gitOk(root, ["init"]);
+    await writeFile(join(root, " leading space.ts"), "export const a = 1;\n");
+    await gitOk(root, ["add", "."]);
+    await gitOk(root, ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "base"]);
+    await writeFile(join(root, "staged.ts"), "new\n");
+    await gitOk(root, ["add", "staged.ts"]);
+    assert.deepEqual(await trackedFiles(root), [" leading space.ts"]);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
