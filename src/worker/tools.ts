@@ -20,6 +20,7 @@ export function createSubmitOutcomeTool(capture: (outcome: WorkerOutcome) => voi
       evidence: Type.Array(Type.String()),
       requestedContext: Type.Optional(Type.String()),
       conflict: Type.Optional(Type.String()),
+      projectIssue: Type.Optional(Type.Object({ kind: Type.Union([Type.Literal("architecture_assumption_invalidated"), Type.Literal("task_graph_blocked")]), summary: Type.String({ maxLength: 600 }) })),
       residualRisks: Type.Array(Type.String()),
     }),
     execute: async (_id, params) => {

@@ -78,6 +78,7 @@ export interface WorkerOutcome {
   evidence: string[];
   requestedContext?: string;
   conflict?: string;
+  projectIssue?: { kind: "architecture_assumption_invalidated" | "task_graph_blocked"; summary: string };
   residualRisks: string[];
 }
 

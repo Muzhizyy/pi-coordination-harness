@@ -43,6 +43,7 @@ export class ProjectIrStore {
 
   async saveSemantic(input: {
     revision: string;
+    repositoryName?: string;
     architectureMarkdown: string;
     modules: ProjectIrIndex["modules"];
     interfaces: ProjectIrIndex["interfaces"];
@@ -59,7 +60,7 @@ export class ProjectIrStore {
       revision: input.revision,
       generatedAt: new Date().toISOString(),
       repository: {
-        name: inventory.name,
+        name: input.repositoryName ?? inventory.name,
         languages: inventory.languages,
         manifests: inventory.manifests,
         trackedFileCount: inventory.files.length,

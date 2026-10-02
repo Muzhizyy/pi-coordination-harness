@@ -81,6 +81,7 @@ export function createEvidenceScout(repo: string, profile: ModelProfile, pi: PiR
 }
 
 export class EvidenceResolver {
+  private readonly semanticDecisions = new Set<string>();
   constructor(private readonly repo: string, private readonly index: ProjectIrIndex, private readonly budget: PlannerContextBudget,
     private readonly scout: EvidenceScout, private readonly denyRead: string[] = [],
     private readonly persist?: (request: EvidenceRequest, packet: EvidencePacket) => Promise<void>) {}
@@ -117,6 +118,7 @@ export class EvidenceResolver {
       packet.exceptions = found.exceptions; packet.unresolved = found.unresolved;
     }
     if (request.types.includes("excerpt")) {
+      if (!this.semanticDecisions.has(request.decision)) throw new Error("Request semantic evidence for this decision before drilling into raw source");
       const ex = request.excerpt;
       if (!ex || !ex.ambiguity.trim() || !request.scope.files.includes(ex.file)) throw new Error("Raw evidence requires a scoped file and a decision-changing ambiguity");
       if (!Number.isSafeInteger(ex.startLine) || !Number.isSafeInteger(ex.endLine) || ex.startLine < 1 || ex.endLine < ex.startLine || ex.endLine - ex.startLine >= 80) throw new Error("Excerpts must contain 1–80 valid lines");
@@ -130,6 +132,7 @@ export class EvidenceResolver {
     // Source bytes have their own budget; only excerpt locators count as architecture context.
     this.budget.semantic({ ...packet, excerpts: packet.excerpts.map(({ locator }) => ({ locator })) });
     await this.persist?.(request, packet);
+    if (!request.types.includes("excerpt") && packet.claims.length > 0) this.semanticDecisions.add(request.decision);
     return packet;
   }
 }

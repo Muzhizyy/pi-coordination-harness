@@ -43,6 +43,9 @@ export class Verifier {
       commands.push({ command, ...result });
       if (result.exitCode !== 0) failures.push(`Final verification failed: ${command}\n${result.output}`);
     }
+    const tracked = await git(workspace, ["diff", "--name-only", "HEAD"]);
+    if (tracked.exitCode !== 0) throw new Error("Cannot inspect final integration state");
+    if (tracked.stdout.trim()) failures.push("Final verification modified tracked source; refusing to export a patch for a different state");
     return { ok: failures.length === 0, changedFiles: [], commands, failures };
   }
 

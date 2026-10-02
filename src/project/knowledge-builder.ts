@@ -44,7 +44,7 @@ export class KnowledgeBuilder {
     let committed: Parameters<ProjectIrStore["saveSemantic"]>[0] | undefined;
     const tool = createCommitProjectIrTool((value) => {
       if (committed) throw new Error("Project IR already committed");
-      committed = { ...value, revision: inventory.revision };
+      committed = { ...value, revision: inventory.revision, repositoryName: previous?.index.repository.name ?? inventory.name };
     });
     try {
       session = await this.pi.createRoleSession({

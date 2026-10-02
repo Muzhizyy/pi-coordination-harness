@@ -9,6 +9,26 @@ export function applyPlanDelta(plan: ProjectPlan, delta: PlanDelta): ProjectPlan
   return { ...plan, tasks: [...byId.values()] };
 }
 
+/** Validate a delta before changing live contracts or discarding worker state. */
+export function validatePlanDelta(plan: ProjectPlan, delta: PlanDelta, accepted = new Set<string>()): void {
+  const current = new Set(plan.tasks.map((t) => t.id));
+  const revised = new Set(delta.revisedTasks.map((t) => t.id));
+  const added = new Set(delta.addedTasks.map((t) => t.id));
+  if (revised.size !== delta.revisedTasks.length || added.size !== delta.addedTasks.length) throw new Error("Duplicate task ids in plan delta");
+  for (const id of revised) if (!current.has(id)) throw new Error(`Cannot revise unknown task: ${id}`);
+  for (const id of added) if (current.has(id) || revised.has(id)) throw new Error(`Added task already exists: ${id}`);
+  const changed = new Set([...revised, ...delta.cancelledTaskIds, ...delta.invalidatedTaskIds]);
+  for (const id of changed) {
+    if (!current.has(id)) throw new Error(`Unknown changed task: ${id}`);
+    if (accepted.has(id)) throw new Error(`Cannot retroactively change accepted task: ${id}`);
+  }
+  for (const id of delta.cancelledTaskIds) if (revised.has(id)) throw new Error(`Cancelled task cannot also be revised: ${id}`);
+  for (const id of delta.unaffectedTaskIds) if (!current.has(id) || changed.has(id)) throw new Error(`Invalid unaffected task: ${id}`);
+  const next = applyPlanDelta(plan, delta);
+  validatePlan(next);
+  if (JSON.stringify(next.tasks) === JSON.stringify(plan.tasks)) throw new Error("Plan delta makes no progress");
+}
+
 export function makeContract(task: PlanTaskSpec, baseRevision: string, version = 1): TaskContract {
   return {
     id: task.id,

@@ -24,8 +24,8 @@ export async function repositoryHead(repo: string): Promise<string> {
 }
 
 export async function trackedFiles(repo: string): Promise<string[]> {
-  const out = await gitOk(repo, ["ls-files"]);
-  return out ? out.split("\n").filter(Boolean) : [];
+  const out = await gitOk(repo, ["ls-tree", "-r", "--name-only", "-z", "HEAD"]);
+  return out ? out.split("\0").filter(Boolean) : [];
 }
 
 export async function deterministicInventory(repo: string): Promise<{

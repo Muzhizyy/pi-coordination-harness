@@ -21,9 +21,10 @@ export function projectArchitecture(index: ProjectIrIndex, query: string, budget
   const ranked = [...index.modules].sort((a, b) => relevant(b) - relevant(a) || a.id.localeCompare(b.id));
   const selected = ranked.filter((m) => relevant(m) > 0);
   const moduleIds = new Set((selected.length ? selected : ranked.slice(0, 3)).map((m) => m.id));
+  const primaryIds = new Set(moduleIds);
   // Include direct neighbours so a relevant module is not presented in isolation.
   for (const edge of index.dependencies ?? []) {
-    if (moduleIds.has(edge.from) || moduleIds.has(edge.to)) { moduleIds.add(edge.from); moduleIds.add(edge.to); }
+    if (primaryIds.has(edge.from) || primaryIds.has(edge.to)) { moduleIds.add(edge.from); moduleIds.add(edge.to); }
   }
   const view: ArchitectureView = {
     schemaVersion: 1, revision: index.revision, repository: index.repository,

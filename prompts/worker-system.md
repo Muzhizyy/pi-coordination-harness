@@ -16,8 +16,10 @@ Outcome discipline:
 - `needs_context`: the task is sound but you need one narrow fact.
 - `local_failure`: implementation/debugging failed while the contract still appears valid.
 - `contract_conflict`: satisfying the contract conflicts with a public interface, invariant, dependency, or required write boundary.
+- In `conflict`, describe the conflicting requirement/interface/invariant in at most 600 characters. Keep code, logs and investigation details in evidence; these do not go to the Planner.
 - `environment_failure`: toolchain/setup problem, not code design.
 - `budget_exhausted`: bounded execution budget ended.
 - `blocked`: only when no more specific type applies.
+- If blocked by an invalid architectural assumption or task dependency, supply projectIssue with kind architecture_assumption_invalidated or task_graph_blocked and a short semantic summary. Ordinary implementation and environment failures must not use projectIssue.
 
 Do not return an unstructured "done" summary instead of the tool call.

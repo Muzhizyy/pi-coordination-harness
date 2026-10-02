@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { EvidencePacket, EvidenceRequest, EvidenceRef, PlanDelta, PlannerEvent, ProjectPlan, RunMetrics, TaskContract, VerificationResult, WorkerOutcome } from "../types.js";
 import type { ProjectIrSnapshot } from "../project/project-ir.js";
-import { ensureDir, writeJson, writeText } from "../utils/fs.js";
+import { ensureDir, readJson, writeJson, writeText } from "../utils/fs.js";
 
 export class RunStore {
   readonly dir: string;
@@ -35,7 +35,7 @@ export class RunStore {
   writeProjectSnapshot(ir: ProjectIrSnapshot): Promise<void> { return writeJson(join(this.dir, "project-snapshot.json"), ir); }
   writeEvidencePacket(request: EvidenceRequest, packet: EvidencePacket): Promise<void> { return writeJson(join(this.dir, "evidence", `${packet.id}.json`), { request, packet }); }
   writeOutcome(outcome: WorkerOutcome, attempt: number): Promise<void> {
-    return writeJson(join(this.dir, "outcomes", `${outcome.taskId}-v${outcome.contractVersion}-attempt-${attempt}.json`), outcome);
+    return writeJson(join(this.dir, "outcomes", `${outcome.taskId}-v${outcome.contractVersion}-attempt-${attempt}-${outcome.status}.json`), outcome);
   }
   writeEvidence(evidence: EvidenceRef): Promise<void> { return writeJson(join(this.dir, "evidence", `${evidence.id}.json`), evidence); }
   writeVerification(name: string, result: VerificationResult): Promise<void> {
@@ -44,6 +44,9 @@ export class RunStore {
   writeMetrics(metrics: RunMetrics): Promise<void> { return writeJson(join(this.dir, "metrics.json"), metrics); }
   writeFinalPatch(patch: string): Promise<void> { return writeText(join(this.dir, "final.patch"), patch); }
   async finish(status: "complete" | "failed", details: Record<string, unknown> = {}): Promise<void> {
-    await writeJson(join(this.dir, "result.json"), { status, finishedAt: new Date().toISOString(), ...details });
+    const finishedAt = new Date().toISOString();
+    const state = await readJson<Record<string, unknown>>(join(this.dir, "state.json"));
+    await writeJson(join(this.dir, "state.json"), { ...state, status, finishedAt });
+    await writeJson(join(this.dir, "result.json"), { status, finishedAt, ...details });
   }
 }

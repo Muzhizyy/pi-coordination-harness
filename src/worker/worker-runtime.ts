@@ -6,11 +6,14 @@ import { createPathPolicyExtension } from "../sandbox/path-policy-extension.js";
 import { SandboxController } from "../sandbox/sandbox-controller.js";
 import type { HarnessConfig, ModelProfile, RunMetrics, TaskContract, WorkerOutcome } from "../types.js";
 import { createSubmitOutcomeTool } from "./tools.js";
+import { terminalExtension } from "../pi/terminal.js";
+import { assertActiveOutcome } from "../runtime/events.js";
 
 export class WorkerTaskSession {
   private session?: AgentSession;
   private captured?: WorkerOutcome;
   private sandbox = new SandboxController();
+  private contractFingerprint?: string;
 
   constructor(
     private readonly workspace: string,
@@ -22,10 +25,16 @@ export class WorkerTaskSession {
   ) {}
 
   async start(contract: TaskContract, projectContext: string): Promise<WorkerOutcome> {
+    if (this.session) throw new Error("Worker session already owns a task contract");
+    this.contractFingerprint = JSON.stringify(contract);
     await this.sandbox.initialize(this.workspace, this.config.sandbox);
     const systemPrompt = await loadPrompt(this.metricRole === "strongWorker" ? "strong-worker-system.md" : "worker-system.md");
     const userTemplate = await loadPrompt("worker-task.md");
-    const outcomeTool = createSubmitOutcomeTool((value) => { this.captured = value; });
+    const outcomeTool = createSubmitOutcomeTool((value) => {
+      assertActiveOutcome(value, contract);
+      if (this.captured) throw new Error("Worker outcome already submitted");
+      this.captured = value;
+    });
     const sandboxedBash = createBashTool(this.workspace, { operations: this.sandbox.bashOperations() });
     this.session = await this.pi.createRoleSession({
       cwd: this.workspace,
@@ -33,7 +42,7 @@ export class WorkerTaskSession {
       systemPrompt,
       tools: ["read", "grep", "find", "ls", "edit", "write", "bash", "submit_outcome"],
       customTools: [sandboxedBash, outcomeTool],
-      extensionFactories: [createPathPolicyExtension(this.workspace, this.config.sandbox)],
+      extensionFactories: [createPathPolicyExtension(this.workspace, this.config.sandbox), terminalExtension(outcomeTool.name, () => this.captured !== undefined)],
       persistent: true,
     });
     await this.session.prompt(render(userTemplate, {
@@ -49,6 +58,7 @@ export class WorkerTaskSession {
 
   async retry(contract: TaskContract, failureEvidence: string): Promise<WorkerOutcome> {
     if (!this.session) throw new Error("Worker session has not started");
+    if (JSON.stringify(contract) !== this.contractFingerprint) throw new Error("Changed contract invalidates Worker context; start a fresh session");
     this.captured = undefined;
     const template = await loadPrompt("worker-retry.md");
     await this.session.prompt(render(template, {
