@@ -10,6 +10,12 @@ export interface HarnessConfig {
   planner: ModelProfile;
   worker: ModelProfile;
   strongWorker?: ModelProfile;
+  scout?: ModelProfile;
+  plannerContext: {
+    architectureTokens: number;
+    rawCodeTokens: number;
+    evidenceRequests: number;
+  };
   sandbox: {
     enabled: boolean;
     allowNetwork: boolean;
@@ -104,7 +110,7 @@ export interface PlanDelta {
 }
 
 export interface ProjectIrIndex {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   revision: string;
   generatedAt: string;
   repository: {
@@ -120,6 +126,9 @@ export interface ProjectIrIndex {
     responsibility: string;
     evidence: string[];
     confidence: "high" | "medium" | "low";
+    nonResponsibilities?: string[];
+    publicInterfaces?: string[];
+    tests?: string[];
   }>;
   interfaces: Array<{
     id: string;
@@ -128,6 +137,8 @@ export interface ProjectIrIndex {
     location: string;
     summary: string;
     evidence: string[];
+    owner?: string;
+    stability?: "public" | "internal";
   }>;
   capabilities: Array<{
     id: string;
@@ -143,6 +154,68 @@ export interface ProjectIrIndex {
     evidence: string[];
   }>;
   unresolved: string[];
+  dependencies?: ArchitectureDependency[];
+  decisions?: ArchitectureDecision[];
+}
+
+export interface ArchitectureDependency {
+  from: string;
+  to: string;
+  kind: "import" | "semantic";
+  evidence: string[];
+}
+
+export interface ArchitectureDecision {
+  id: string;
+  area: string;
+  summary: string;
+  rationale: string;
+  rejectedAlternatives: string[];
+  evidence: string[];
+}
+
+export interface ArchitectureView {
+  schemaVersion: 1;
+  revision: string;
+  repository: ProjectIrIndex["repository"];
+  moduleMap: Array<{ id: string; responsibility: string }>;
+  modules: ProjectIrIndex["modules"];
+  interfaces: ProjectIrIndex["interfaces"];
+  capabilities: ProjectIrIndex["capabilities"];
+  dependencies: ArchitectureDependency[];
+  constraints: ProjectIrIndex["constraints"];
+  decisions: ArchitectureDecision[];
+  unresolved: string[];
+  omitted: Record<string, number>;
+}
+
+export interface EvidenceRequest {
+  question: string;
+  decision: string;
+  scope: { modules: string[]; symbols: string[]; files: string[] };
+  types: Array<"interfaces" | "dependencies" | "callers" | "tests" | "behavior" | "excerpt">;
+  excerpt?: { file: string; startLine: number; endLine: number; ambiguity: string };
+}
+
+export interface EvidencePacket {
+  id: string;
+  revision: string;
+  question: string;
+  claims: Array<{ statement: string; evidence: EvidenceRef[] }>;
+  confidence: "high" | "medium" | "low";
+  exceptions: string[];
+  unresolved: string[];
+  excerpts: Array<{ locator: string; source: string }>;
+}
+
+export type PlannerEventReason = "INITIAL_REQUIREMENT" | "CONTRACT_CONFLICT" | "ARCHITECTURE_ASSUMPTION_INVALIDATED" | "TASK_GRAPH_BLOCKED";
+
+export interface PlannerEvent {
+  reason: Exclude<PlannerEventReason, "INITIAL_REQUIREMENT">;
+  taskId?: string;
+  contractVersion?: number;
+  issue: string;
+  evidenceIds: string[];
 }
 
 export interface VerificationResult {
@@ -174,6 +247,9 @@ export interface RunMetrics {
   planner: RoleMetrics;
   worker: RoleMetrics;
   strongWorker: RoleMetrics;
+  scout: RoleMetrics;
+  knowledgeBuilder: RoleMetrics;
+  plannerContext: { architectureUnits: number; rawCodeUnits: number; evidenceRequests: number };
   plannerWakeups: Array<{ reason: string; at: string }>;
   taskAttempts: Record<string, number>;
 }

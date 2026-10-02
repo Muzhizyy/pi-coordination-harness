@@ -14,6 +14,9 @@ export function emptyRunMetrics(): RunMetrics {
     planner: emptyRoleMetrics(),
     worker: emptyRoleMetrics(),
     strongWorker: emptyRoleMetrics(),
+    scout: emptyRoleMetrics(),
+    knowledgeBuilder: emptyRoleMetrics(),
+    plannerContext: { architectureUnits: 0, rawCodeUnits: 0, evidenceRequests: 0 },
     plannerWakeups: [],
     taskAttempts: {},
   };

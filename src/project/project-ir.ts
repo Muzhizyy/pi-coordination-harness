@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { ProjectIrIndex } from "../types.js";
 import { deterministicInventory } from "./repository.js";
+import { indexDependencies } from "./dependencies.js";
 import { readJson, readText, writeJson, writeText } from "../utils/fs.js";
 
 export interface ProjectIrManifest {
@@ -48,10 +49,13 @@ export class ProjectIrStore {
     capabilities: ProjectIrIndex["capabilities"];
     constraints: ProjectIrIndex["constraints"];
     unresolved: string[];
+    dependencies?: ProjectIrIndex["dependencies"];
+    decisions?: ProjectIrIndex["decisions"];
   }): Promise<void> {
     const inventory = await this.buildInventory();
+    if (inventory.revision !== input.revision) throw new Error("Repository changed during Project IR construction");
     const index: ProjectIrIndex = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: input.revision,
       generatedAt: new Date().toISOString(),
       repository: {
@@ -66,6 +70,8 @@ export class ProjectIrStore {
       capabilities: input.capabilities,
       constraints: input.constraints,
       unresolved: input.unresolved,
+      dependencies: [...await indexDependencies(this.repo, input.revision, inventory.files, input.modules), ...(input.dependencies ?? []).filter((d) => d.kind === "semantic")],
+      decisions: input.decisions ?? [],
     };
     await writeText(this.architecturePath, `${input.architectureMarkdown.trim()}\n`);
     await writeJson(this.indexPath, index);
@@ -84,5 +90,10 @@ export class ProjectIrStore {
       index: await readJson<ProjectIrIndex>(this.indexPath),
       decisions: await readText(this.decisionsPath),
     };
+  }
+
+  async markStale(): Promise<void> {
+    const manifest = await this.manifest();
+    await writeJson(this.manifestPath, { ...manifest, status: "stale" });
   }
 }
