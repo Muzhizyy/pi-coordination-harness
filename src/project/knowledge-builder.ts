@@ -58,8 +58,9 @@ export class KnowledgeBuilder {
         const owners = previous?.index.modules.filter((m) => allowed.has(`module:${m.id}`)) ?? [];
         for (const m of value.modules) if (!allowed.has(`module:${m.id}`)) throw new Error("Scoped refresh cannot overwrite an unrelated module");
         for (const i of value.interfaces) if (!allowed.has(`interface:${i.id}`) && !owners.some((m) => m.id === i.owner)) throw new Error("Scoped refresh cannot overwrite an unrelated interface");
-        for (const c of value.capabilities) if (!allowed.has(`capability:${c.id}`)) throw new Error("Scoped refresh cannot overwrite an unrelated capability");
-        for (const c of value.constraints) if (!allowed.has(`constraint:${c.id}`)) throw new Error("Scoped refresh cannot overwrite an unrelated constraint");
+        const inOwnerScope = (evidence: string[]) => evidence.length > 0 && evidence.every((locator) => owners.some((m) => pathMatchesScope(locator.replace(/:\d+(?:-\d+)?$/, ""), [m.path === "." ? "**" : `${m.path}/**`])));
+        for (const c of value.capabilities) if (!allowed.has(`capability:${c.id}`) && (previous?.index.capabilities.some((old) => old.id === c.id) || !inOwnerScope(c.evidence))) throw new Error("Scoped refresh cannot overwrite an unrelated capability");
+        for (const c of value.constraints) if (!allowed.has(`constraint:${c.id}`) && (previous?.index.constraints.some((old) => old.id === c.id) || !inOwnerScope(c.evidence))) throw new Error("Scoped refresh cannot overwrite an unrelated constraint");
         for (const id of value.removedKnowledgeIds ?? []) if (!allowed.has(id)) throw new Error("Scoped refresh cannot remove unrelated knowledge");
       }
       committed = { ...value, revision: inventory.revision, repositoryName: previous?.index.repository.name ?? inventory.name, previous, focusIds };

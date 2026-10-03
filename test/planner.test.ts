@@ -31,7 +31,8 @@ test("Planner has only architectural tools, projected context and a fresh termin
 test("local outcomes cannot become Planner events and conflict projection omits logs and diff", () => {
   const outcome: any = { taskId: "T1", contractVersion: 1, summary: "LOG_SENTINEL", evidence: ["DIFF_SENTINEL"], changedFiles: ["raw.ts"], checksRun: ["test logs"] };
   for (const status of ["local_failure", "candidate_ready", "needs_context", "environment_failure", "budget_exhausted", "blocked"]) assert.equal(projectEvent({ ...outcome, status }), undefined);
-  const event = projectEvent({ ...outcome, status: "contract_conflict", conflict: "API preservation conflicts with requirement" });
+  assert.equal(projectEvent({ ...outcome, status: "contract_conflict" }), undefined);
+  const event = projectEvent({ ...outcome, status: "contract_conflict" }, { id: "assessed-conflict", classification: "contract", summary: "API preservation conflicts with requirement", observations: [] });
   assert.equal(event?.reason, "CONTRACT_CONFLICT");
   assert.ok(!JSON.stringify(event).includes("SENTINEL"));
 });

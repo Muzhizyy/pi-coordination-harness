@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { open, unlink } from "node:fs/promises";
 import type { EvidencePacket, EvidenceRequest, EvidenceRef, PlanDelta, PlannerEvent, ProjectPlan, RunMetrics, TaskContract, VerificationResult, WorkerOutcome } from "../types.js";
 import type { ProjectIrSnapshot } from "../project/project-ir.js";
 import { ensureDir, readJson, writeJson, writeText } from "../utils/fs.js";
@@ -24,6 +25,30 @@ export class RunStore {
       status: "running",
       startedAt: new Date().toISOString(),
     });
+  }
+
+  /** Protect the same run's worktree and checkpoint from overlapping resume calls. */
+  async acquire(): Promise<() => Promise<void>> {
+    await ensureDir(this.dir);
+    const path = join(this.dir, "run.lock");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const handle = await open(path, "wx");
+        try { await handle.writeFile(JSON.stringify({ pid: process.pid })); } finally { await handle.close(); }
+        return async () => { await unlink(path); };
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        const owner = await readJson<{ pid: number }>(path);
+        if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0) throw new Error("Invalid run lease owner");
+        try { process.kill(owner.pid, 0); }
+        catch (probe) {
+          if ((probe as NodeJS.ErrnoException).code === "ESRCH") { await unlink(path); continue; }
+          throw probe;
+        }
+        throw new Error("Run is already active; concurrent resume is refused");
+      }
+    }
+    throw new Error("Cannot acquire run lease");
   }
 
   writePlan(plan: ProjectPlan): Promise<void> { return writeJson(join(this.dir, "plan.json"), plan); }

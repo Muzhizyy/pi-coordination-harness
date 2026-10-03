@@ -243,6 +243,8 @@ export interface ArchitectureDecision {
   taskIds?: string[];
   status?: "proposed" | "active" | "superseded";
   revision?: string;
+  /** Historical basis at decision time, preserved when the live catalogue changes. */
+  basis?: Array<{ id: string; digest: string; revision: string; statement: string; evidence: EvidenceRef[]; validation: KnowledgeRecord["validation"] }>;
 }
 
 export interface ArchitectureView {

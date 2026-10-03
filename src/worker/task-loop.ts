@@ -1,5 +1,5 @@
 import type { DiagnosticReport, HarnessConfig, PlannerEvent, TaskContract, VerificationResult, WorkerOutcome } from "../types.js";
-import { assertActiveOutcome } from "../runtime/events.js";
+import { assertActiveOutcome, projectEvent } from "../runtime/events.js";
 
 export interface TaskWorker {
   start(contract: TaskContract, context: string): Promise<WorkerOutcome>;
@@ -57,10 +57,8 @@ export class WorkerTaskLoop {
           if (++diagnosisCalls > (this.config.budgets.diagnosisCalls ?? 2)) throw new Error(`Task ${contract.id} exhausted diagnosis budget`);
           diagnosed = await this.hooks.diagnose(outcome, lastVerification);
         }
-        if (diagnosed?.classification === "contract") return { status: "project_event", event: {
-          reason: outcome.projectIssue?.kind === "task_graph_blocked" ? "TASK_GRAPH_BLOCKED" : outcome.projectIssue ? "ARCHITECTURE_ASSUMPTION_INVALIDATED" : "CONTRACT_CONFLICT",
-          taskId: contract.id, contractVersion: contract.version, issue: diagnosed.summary.slice(0, 600), evidenceIds: [diagnosed.id],
-        } };
+        const event = projectEvent(outcome, diagnosed);
+        if (event) return { status: "project_event", event };
         if (diagnosed && ["environment", "inconclusive"].includes(diagnosed.classification)) throw new Error(`Task ${contract.id} diagnosis: ${diagnosed.classification}: ${diagnosed.summary}`);
         if (!exhausted && outcome.status !== "environment_failure") {
           const feedback = diagnosed?.classification === "context" ? await this.hooks.context(diagnosed.summary) : `Continue under the SAME contract. ${diagnosed?.summary ?? outcome.summary}\n${JSON.stringify(lastVerification ?? {})}`;

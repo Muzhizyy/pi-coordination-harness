@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { HarnessConfig, PlannerEvent, PlanTaskSpec, TaskContract, VerificationObligation } from "../types.js";
+import type { DecisionProposal, HarnessConfig, PlannerEvent, PlanTaskSpec, ProjectPlan, TaskContract, VerificationObligation } from "../types.js";
 import { PiRuntime } from "../pi/session.js";
 import { PlannerRuntime } from "../planner/planner-runtime.js";
 import { KnowledgeBuilder } from "../project/knowledge-builder.js";
@@ -47,12 +47,7 @@ export class ProjectRuntime {
     const runId = previous?.runId ?? `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
     const store = new RunStore(this.repo, runId);
     const workspace = new WorkspaceManager(this.repo, runId);
-    if (previous) {
-      const retained = await gitOk(this.repo, ["rev-parse", workspace.checkpointRef]);
-      const ancestor = await gitOk(this.repo, ["merge-base", retained, previous.integrationRevision]);
-      if (ancestor !== previous.integrationRevision) throw new Error("Checkpoint does not belong to the retained integration history");
-      await store.markRunning();
-    } else await store.init(requirement, baseRevision);
+    const release = await store.acquire();
     const metrics = previous?.metrics ?? emptyRunMetrics();
     const integrated = new Set(previous?.integratedTasks ?? []);
     const cancelled = new Set(previous?.cancelledTasks ?? []);
@@ -80,7 +75,18 @@ export class ProjectRuntime {
       view: async (reason: string, view: unknown) => store.writeArchitectureView(reason, ++sequence, view),
       deferral: async (value: unknown) => store.writeArtifact(`planner-deferral-${++sequence}`, value),
     };
+    const stageDecisions = async (decisions: DecisionProposal[], nextPlan: ProjectPlan): Promise<void> => {
+      const ids = decisions.flatMap((d) => d.evidence.map((id) => ir.index.knowledge?.find((k) => k.id === id || k.evidence.some((e) => e.id === id))?.id).filter((id): id is string => id !== undefined));
+      if (ids.length) ir = (await knowledge.demand(ir, integration, ids)).ir;
+      proposeDecisions(ir.index, decisions, new Set(nextPlan.tasks.map((t) => t.id)), nextPlan.requirements);
+    };
     try {
+      if (previous) {
+        const retained = await gitOk(this.repo, ["rev-parse", workspace.checkpointRef]);
+        const ancestor = await gitOk(this.repo, ["merge-base", retained, previous.integrationRevision]);
+        if (ancestor !== previous.integrationRevision) throw new Error("Checkpoint does not belong to the retained integration history");
+        await store.markRunning();
+      } else await store.init(requirement, baseRevision);
       integration = await workspace.createIntegration(previous?.integrationRevision ?? baseRevision);
       ir = previous?.ir ?? await new KnowledgeBuilder(this.repo, this.config.scout ?? this.config.worker, this.pi, metrics, this.config.sandbox).ensure();
       if (ir.index.revision !== await workspace.integrationHead()) throw new Error("Project knowledge does not match the integration checkpoint");
@@ -91,8 +97,8 @@ export class ProjectRuntime {
         if (dirty.length) ir = (await knowledge.demand(ir, integration, dirty)).ir;
         plan = await new PlannerRuntime(integration, this.config, this.pi, metrics, artifacts).plan(requirement, ir);
         validatePlan(plan);
+        await stageDecisions(plan.decisions ?? [], plan);
         for (const task of plan.tasks) bindTaskKnowledge(task, ir.index);
-        proposeDecisions(ir.index, plan.decisions ?? [], new Set(plan.tasks.map((t) => t.id)));
       }
       checkpointReady = true;
       await checkpoint();
@@ -105,11 +111,12 @@ export class ProjectRuntime {
         const changed = new Set([...delta.revisedTasks.map((t) => t.id), ...delta.cancelledTaskIds, ...delta.invalidatedTaskIds]);
         for (const id of [...(event.affectedTaskIds ?? []), ...(event.taskId ? [event.taskId] : [])]) if (!changed.has(id)) throw new Error(`Replan must revise or retire invalid contract ${id}`);
         for (const task of delta.addedTasks) if (versions.has(task.id) || cancelled.has(task.id)) throw new Error(`Cannot reuse retired task id: ${task.id}`);
+        const nextPlan = applyPlanDelta(plan, delta);
+        await stageDecisions(delta.decisions ?? [], nextPlan);
         for (const task of [...delta.revisedTasks, ...delta.addedTasks]) bindTaskKnowledge(task, ir.index);
         for (const task of delta.revisedTasks) versions.set(task.id, (versions.get(task.id) ?? 1) + 1);
         for (const id of [...delta.cancelledTaskIds, ...delta.invalidatedTaskIds]) if (!delta.revisedTasks.some((t) => t.id === id)) cancelled.add(id);
-        plan = applyPlanDelta(plan, delta);
-        proposeDecisions(ir.index, delta.decisions ?? [], new Set(plan.tasks.map((t) => t.id)));
+        plan = nextPlan;
         for (const d of ir.index.decisions ?? []) if (d.status === "proposed" && d.taskIds?.some((id) => cancelled.has(id))) d.status = "superseded";
         await store.writePlanDelta(delta, replans);
         await checkpoint();
@@ -169,13 +176,13 @@ export class ProjectRuntime {
           const event = await executeTask(task);
           if (event) await replan(event);
         }
-        const finalCommands = [...new Set([...plan.finalVerificationCommands, ...this.config.verification.finalCommands])];
+        const finalCommands = [...new Set([...plan.finalVerificationCommands, ...this.config.verification.finalCommands, ...plan.tasks.filter((t) => integrated.has(t.id)).flatMap((t) => t.verificationCommands)])];
         const allObligations: VerificationObligation[] = [...plan.projectObligations, ...plan.tasks.filter((t) => integrated.has(t.id)).flatMap((t) => t.obligations.filter((o) => o.mandatory))];
         const finalVerification = await verifier.verifyFinal(integration, finalCommands, allObligations);
         await store.writeVerification(`final-${repairAttempts}`, finalVerification);
         if (finalVerification.ok) {
           // Activate authored decisions only after their tasks AND the project are accepted.
-          for (const d of ir.index.decisions ?? []) if (d.status === "proposed" && d.taskIds?.every((id) => integrated.has(id))) { d.status = "active"; d.revision = await workspace.integrationHead(); }
+          for (const d of ir.index.decisions ?? []) if (d.status === "proposed" && d.basis?.length && d.basis.every((b) => b.validation === "corroborated") && d.taskIds?.every((id) => integrated.has(id))) { d.status = "active"; }
           await new ProjectIrStore(this.repo).saveSnapshot(ir);
           for (const id of integrated) await store.writeArtifact(`task-state-${id}`, { state: "project_accepted", version: versions.get(id), revision: await workspace.integrationHead() });
           await checkpoint();
@@ -205,6 +212,6 @@ export class ProjectRuntime {
       await store.writeMetrics(metrics);
       await store.finish("failed", { integratedPendingTasks: [...integrated], checkpointRef: workspace.checkpointRef, error: error instanceof Error ? error.message : String(error) });
       throw error;
-    } finally { await workspace.dispose(); }
+    } finally { try { await workspace.dispose(); } finally { await release(); } }
   }
 }

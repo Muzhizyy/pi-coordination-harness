@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, lstat } from "node:fs/promises";
+import { readFile, lstat, readlink } from "node:fs/promises";
 import { join } from "node:path";
 import { git, gitOk } from "../utils/exec.js";
 import { normalizedRelative, realRelative, pathMatchesPattern } from "../sandbox/path-policy.js";
@@ -31,6 +31,8 @@ export async function candidateDigest(workspace: string): Promise<string> {
   for (const file of untracked.stdout.split("\0").filter(Boolean).sort()) {
     h.update(JSON.stringify(file));
     const stat = await lstat(join(workspace, file));
+    h.update(String(stat.mode));
+    if (stat.isSymbolicLink()) { h.update(await readlink(join(workspace, file))); continue; }
     if (!stat.isFile()) { h.update("non-regular"); continue; }
     h.update(await readFile(join(workspace, file)));
   }

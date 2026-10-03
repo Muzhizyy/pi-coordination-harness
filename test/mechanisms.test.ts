@@ -263,3 +263,114 @@ test("repair scopes cannot expand prior authorization", () => {
   assert.equal(isNarrowerScope("src/sub/**", ["src/**"]), true);
   for (const scope of ["**", "../escape", ".git/config", "docs/**", "src/**"]) assert.equal(isNarrowerScope(scope, ["src/*.ts"]), false);
 });
+
+test("project repair budgets survive oscillating fixes and retain integrated progress without exporting acceptance", async () => {
+  const root = await fixture({ "src/flags.txt": "pending\n" });
+  let repairs = 0;
+  const ready = { ...sourceObligation("project-ready", "src/flags.txt", "ready"), covers: [] };
+  const pi = fakePi(async (opts, prompt) => {
+    if (await answerReview(opts, prompt)) return;
+    if (tools(opts, "commit_project_ir")) await tools(opts, "commit_project_ir").execute("ir", { ...simpleIndex, architectureMarkdown: "IR" });
+    else if (tools(opts, "commit_plan")) await tools(opts, "commit_plan").execute("plan", plan([task()], [{ ...apiObligation("project-api"), covers: [] }, ready] as any));
+    else if (tools(opts, "submit_diagnosis")) await tools(opts, "submit_diagnosis").execute("diagnosis", { classification: "implementation", summary: "Repair current integration regression", observations: [] });
+    else if (tools(opts, "commit_repair_task")) { repairs++; await tools(opts, "commit_repair_task").execute("repair", { summary: "Correct regression", writeScopes: ["src/**"], files: ["src/main.ts", "src/flags.txt"], tests: [] }); }
+    else if (tools(opts, "submit_outcome")) {
+      if (prompt.includes('"id": "T1"')) await candidate(opts, prompt, "src/main.ts", "export const API = 2;\n");
+      else if (prompt.includes('"id": "repair-1"')) {
+        await writeFile(join(opts.cwd, "src/main.ts"), "export const API = 3;\n");
+        await candidate(opts, prompt, "src/flags.txt", "ready\n");
+      } else {
+        await writeFile(join(opts.cwd, "src/flags.txt"), "pending\n");
+        await candidate(opts, prompt, "src/main.ts", "export const API = 2;\n");
+      }
+    } else throw new Error("Unexpected role");
+  });
+  try {
+    await assert.rejects(new ProjectRuntime(root, config, pi as unknown as PiRuntime).run("Update API and ready flags"), /Project repair limit reached/);
+    assert.equal(repairs, 2);
+    const [runId] = await readdir(join(root, ".agent-orch/runs"));
+    const dir = join(root, ".agent-orch/runs", runId);
+    const cp = JSON.parse(await readFile(join(dir, "checkpoint.json"), "utf8"));
+    assert.equal(cp.repairAttempts, 2);
+    assert.deepEqual(cp.integratedTasks, ["T1", "repair-1", "repair-2"]);
+    assert.equal(JSON.parse(await readFile(join(dir, "state.json"), "utf8")).status, "failed");
+    assert.ok(!(await readdir(dir)).includes("final.patch"));
+    assert.ok(await gitOk(root, ["rev-parse", `refs/pi-coordination/runs/${runId}/integration`]));
+    assert.equal(await readFile(join(root, "src/main.ts"), "utf8"), "export const API = 1;\n");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("optional failures are reported and source mutation invalidates all verification evidence", async () => {
+  const root = await fixture();
+  try {
+    await writeFile(join(root, "src/main.ts"), "export const API = 2;\n");
+    const spec = task();
+    spec.obligations.push({ ...apiObligation("T1.optional"), mandatory: false, covers: [], check: { kind: "command", command: "optional-report" } });
+    const contract = makeContract(spec, await gitOk(root, ["rev-parse", "HEAD"]));
+    const verifier = new Verifier(config);
+    const result = await verifier.verifyTask(root, contract, async (cmd) => ({ exitCode: cmd === "optional-report" ? 1 : 0, output: "fixture check" }));
+    assert.equal(result.ok, true);
+    assert.equal(result.obligations!.find((o) => o.id === "T1.optional")!.status, "violated");
+    const mutated = await verifier.verifyTask(root, { ...contract, verificationCommands: ["mutate-source"] }, async (cmd) => {
+      if (cmd === "mutate-source") await writeFile(join(root, "src/main.ts"), "export const API = 3;\n");
+      return { exitCode: 0, output: "" };
+    });
+    assert.equal(mutated.ok, false);
+    assert.ok(mutated.obligations!.every((o) => o.status === "unverified"));
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("scope-derived knowledge dependencies cannot be omitted by clearing context hints, and scoped refresh discovers new constraints", async () => {
+  const root = await fixture();
+  const metrics = emptyRunMetrics();
+  let builds = 0;
+  const pi = fakePi(async (opts, prompt) => {
+    if (await answerReview(opts, prompt)) return;
+    builds++;
+    await tools(opts, "commit_project_ir").execute("ir", { ...simpleIndex, architectureMarkdown: "IR", constraints: builds === 1 ? [] : [{ id: "API2", summary: "API must expose value 2", evidence: ["src/main.ts:1"] }] });
+  });
+  try {
+    const builder = new KnowledgeBuilder(root, config.worker, pi as unknown as PiRuntime, metrics, config.sandbox);
+    const ir = await builder.ensure();
+    const { bindTaskKnowledge } = await import("../src/project/knowledge.js");
+    const spec = task();
+    spec.contextHints = { files: [], symbols: [], tests: [], capabilities: [] };
+    bindTaskKnowledge(spec, ir.index);
+    assert.ok(spec.knowledgeRefs.some((r) => r.id === "interface:API"));
+    await writeFile(join(root, "src/main.ts"), "export const API = 2;\n");
+    await gitOk(root, ["add", "src/main.ts"]);
+    await gitOk(root, ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "change"]);
+    const coordinator = new KnowledgeCoordinator(root, config, pi as unknown as PiRuntime, metrics, new SemanticReviewer(config, pi as unknown as PiRuntime, metrics));
+    await coordinator.advance(ir, root, await gitOk(root, ["rev-parse", "HEAD"]));
+    const demanded = await coordinator.demand(ir, root, spec.knowledgeRefs.map((r) => r.id));
+    assert.ok(demanded.changes.some((c) => c.kind === "added" && c.id === "constraint:API2"));
+    assert.equal(demanded.ir.index.constraints[0].id, "API2");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("decision bases preserve authored historical evidence after the live catalogue advances", async () => {
+  const { proposeDecisions } = await import("../src/project/knowledge.js");
+  const index = structuredClone(simpleIndex);
+  index.knowledge = [{ id: "interface:API", kind: "fact", statement: "API = 1", source: "scout", sourceScope: ["src/main.ts"], evidence: [{ id: "api-base", kind: "source", locator: "src/main.ts:1", summary: "API = 1", revision: index.revision }], validation: "corroborated", status: "fresh", revision: index.revision, digest: "before", evidenceDigest: "blob-before" }];
+  proposeDecisions(index, [{ id: "D1", area: "API", summary: "Change to 2", rationale: "Requested update", rejectedAlternatives: ["Keep 1"], evidence: ["interface:API", "requirement:R1"], taskIds: ["T1"] }], new Set(["T1"]), planFields.requirements);
+  index.knowledge[0].statement = "API = 2";
+  index.knowledge[0].digest = "after";
+  index.knowledge[0].evidence[0].revision = "b".repeat(40);
+  assert.equal(index.decisions![0].basis![0].statement, "API = 1");
+  assert.equal(index.decisions![0].basis![0].digest, "before");
+  assert.equal(index.decisions![0].basis![0].evidence[0].revision, "a".repeat(40));
+  assert.equal(index.decisions![0].basis![1].validation, "corroborated");
+});
+
+test("run lease rejects overlapping resume and permits access after release", async () => {
+  const { RunStore } = await import("../src/runtime/run-store.js");
+  const root = await fixture();
+  try {
+    const store = new RunStore(root, "lease-test");
+    const release = await store.acquire();
+    await assert.rejects(store.acquire(), /already active/);
+    await release();
+    await (await store.acquire())();
+    await assert.rejects(Promise.resolve().then(() => new RunStore(root, "../escape")), /Invalid run id/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

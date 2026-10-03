@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { DecisionProposal, KnowledgeRecord, PlanTaskSpec, ProjectDelta, ProjectIrIndex } from "../types.js";
+import type { DecisionProposal, KnowledgeRecord, PlanTaskSpec, ProjectDelta, ProjectIrIndex, Requirement } from "../types.js";
 import { git, gitOk } from "../utils/exec.js";
 import { pathMatchesScope } from "../sandbox/path-policy.js";
 import { readRevisionFile } from "./source.js";
@@ -85,7 +85,7 @@ export function knowledgeChanges(before: KnowledgeRecord[], after: KnowledgeReco
 
 /** Explicit refs plus structural context dependencies, frozen at plan creation. */
 export function bindTaskKnowledge(task: PlanTaskSpec, index: ProjectIrIndex): void {
-  const moduleIds = new Set(index.modules.filter((m) => [...task.contextHints.files, ...task.contextHints.tests].some((f) => withinModule(f, m.path))).map((m) => m.id));
+  const moduleIds = new Set(index.modules.filter((m) => pathMatchesScope(m.path, task.writeScopes) || task.writeScopes.some((s) => withinModule(s.replace(/\/\*\*$/, ""), m.path)) || [...task.contextHints.files, ...task.contextHints.tests].some((f) => withinModule(f, m.path))).map((m) => m.id));
   const ids = new Set(task.knowledgeRefs.map((r) => r.id));
   for (const id of moduleIds) ids.add(`module:${id}`);
   for (const i of index.interfaces) if (moduleIds.has(i.owner ?? "") || task.contextHints.symbols.includes(i.id) || task.contextHints.symbols.includes(i.name)) ids.add(`interface:${i.id}`);
@@ -108,11 +108,17 @@ export function invalidTaskRefs(task: PlanTaskSpec, index: ProjectIrIndex): stri
   }).map((r) => r.id);
 }
 
-export function proposeDecisions(index: ProjectIrIndex, decisions: DecisionProposal[], taskIds: Set<string>): void {
+export function proposeDecisions(index: ProjectIrIndex, decisions: DecisionProposal[], taskIds: Set<string>, requirements: Requirement[] = []): void {
   for (const d of decisions) {
-    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(d.id) || !d.rationale.trim() || !d.taskIds.length || d.taskIds.some((id) => !taskIds.has(id)) || !d.evidence.length || d.evidence.some((id) => !index.knowledge?.some((k) => k.id === id || k.evidence.some((e) => e.id === id)))) throw new Error(`Decision needs valid task links, rationale and evidence: ${d.id}`);
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(d.id) || !d.rationale.trim() || !d.taskIds.length || d.taskIds.some((id) => !taskIds.has(id)) || !d.evidence.length || d.evidence.some((id) => !index.knowledge?.some((k) => k.id === id || k.evidence.some((e) => e.id === id)) && !requirements.some((r) => id === `requirement:${r.id}`))) throw new Error(`Decision needs valid task links, rationale and evidence: ${d.id}`);
     const old = index.decisions?.find((x) => x.id === d.id);
     if (old?.status === "active") throw new Error(`Use a new id to supersede an active decision: ${d.id}`);
-    index.decisions = [...(index.decisions ?? []).filter((x) => x.id !== d.id), { ...d, status: "proposed", revision: index.revision }];
+    const basis = d.evidence.map((id) => {
+      const record = index.knowledge?.find((k) => k.id === id || k.evidence.some((e) => e.id === id));
+      if (record) return { id, digest: record.digest, revision: record.revision, statement: record.statement, evidence: structuredClone(record.evidence), validation: record.status === "fresh" ? record.validation : "candidate" as const };
+      const requirement = requirements.find((r) => id === `requirement:${r.id}`)!;
+      return { id, digest: hash(requirement), revision: index.revision, statement: requirement.description, evidence: [{ id, kind: "decision" as const, locator: id, summary: requirement.description, revision: index.revision }], validation: "corroborated" as const };
+    });
+    index.decisions = [...(index.decisions ?? []).filter((x) => x.id !== d.id), { ...d, basis, status: "proposed", revision: index.revision }];
   }
 }

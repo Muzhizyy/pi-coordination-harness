@@ -64,6 +64,7 @@ export class Verifier {
   async verifyFinal(workspace: string, commandsToRun: string[], obligations: VerificationObligation[] = []): Promise<VerificationResult> {
     if (obligations.length) validateObligations(obligations);
     const result = await this.evaluate(workspace, obligations, commandsToRun, (command) => this.execInSandbox(workspace, command));
+    if (!obligations.length && !commandsToRun.length) { result.failures.push("Project verification needs obligations or commands"); result.ok = false; }
     if ((await changedFiles(workspace, "HEAD")).length) {
       result.failures.push("Final verification left changes outside the committed patch (tracked source or unignored files)");
       result.ok = false;
