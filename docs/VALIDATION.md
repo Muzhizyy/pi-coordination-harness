@@ -1,5 +1,25 @@
 # Validation / 验证记录
 
+## V0.3 mechanism repair — 2026-10-03
+
+Validated with Node 24.19.0, npm 11.9.0 and Git 2.51.1 in the task workspace.
+
+| Check | Result |
+| --- | --- |
+| `npm run check` | Type check, all 42 tests and clean build passed |
+| CLI help | Shows run and resume without a model call |
+| `npm pack --dry-run --json` | 161 entries; new knowledge/review/diagnostic/repair/checkpoint modules, declarations and complete mechanism docs included |
+| Prompt mirror | All 14 canonical Markdown prompts synchronized in PROMPT_SUITE.md |
+| Git/source checks | Whitespace, object integrity and restored bundle/source checks performed locally |
+
+New conformance scenarios cover uncovered requirements/constraints, unverified semantic obligations, selective knowledge invalidation before dispatch, unchanged unrelated task versions, final corrective verification, repeated environment-interrupted resume without overwriting attempt history, false conflict rejection, independently assessed Scout promotion/rejection, exact-tree reuse, bounded fresh-session planning deferral, repair oscillation limits, optional result reporting, candidate mutation, scope-derived dependencies, new scoped constraints, decision historical bases and concurrent-resume refusal.
+
+Models are simulated. Actual repositories, worktrees, commits, retained refs, checkpoint restoration and `git apply --check` are exercised. Tests establish routing and evidence/state behavior, not live-provider semantic reliability. Authenticated provider calls, actual OS sandbox enforcement, large-repository completeness and cost/latency improvements remain unvalidated. Semantic review remains evidence-backed model judgment rather than formal proof; the scheduler remains serial.
+
+本次六项机制改造通过类型检查、42 个测试和干净构建。新增端到端场景使用模拟模型会话和真实 Git/文件操作，覆盖整体修复、环境中断后续跑、知识影响和误报冲突等路径。真实模型质量、OS 沙箱效果及费用收益不在本次验证范围。
+
+The previous validation history is retained below.
+
 ## V0.2 architecture/runtime update — 2026-10-02
 
 Validated in the task workspace with Node 24.19.0, npm 11.9.0 and Git 2.51.1.

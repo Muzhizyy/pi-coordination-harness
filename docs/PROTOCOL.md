@@ -1,114 +1,103 @@
-# Coordination protocol and conformance
+# Coordination protocol — V0.3
 
-The runtime implements the core semantics of the generic coordination approach.
-It is not a bundled installation of the external Model Coordination Skill and
-makes no claim of complete conformance to its broader multi-worker design.
+The protocol defines runtime authority, not full conformance to any external coordination skill. TypeScript types are in `src/types.ts`; model tool schemas are in `src/planner/tools.ts` and `protocol-schema.ts`; runtime validation supplements those schemas.
 
-## ArchitectureView
+## Requirement and obligations
 
-`schemaVersion: 1`, indexed `revision`, repository metadata, global `moduleMap`,
-detailed relevant `modules`, `interfaces`, `capabilities`, `dependencies`,
-`constraints`, `decisions`, `unresolved`, and per-section `omitted` counts.
-
-The IR schema is v2; legacy v1 files are accepted as refresh input. No source
-bodies or complete `architecture.md`/`decisions.md` files are automatically
-injected into the Planner. Structured decisions live in `index.json`;
-`decisions.md` is retained as legacy/user-supplied background for knowledge refresh.
-
-## EvidenceRequest / EvidencePacket
+ProjectPlan adds `requirements`, `projectObligations` and `decisions`. Every mandatory requirement needs a mandatory project obligation. All task/project obligation ids are unique across the plan and reference a known requirement.
 
 ```json
 {
-  "question": "Which callers rely on this return shape?",
-  "decision": "Preserve PaymentClient compatibility during retry changes",
-  "scope": {"modules": ["payment"], "symbols": ["PaymentClient"], "files": []},
-  "types": ["interfaces", "callers", "tests"]
+  "id": "T1.pagination",
+  "requirementId": "R1",
+  "description": "Existing fields remain compatible and the next cursor advances",
+  "category": "behavior",
+  "mandatory": true,
+  "covers": ["acceptance:0", "constraint:0"],
+  "check": {"kind": "command", "command": "npm test -- pagination"}
 }
 ```
 
-Supported evidence types: `interfaces`, `dependencies`, `callers`, `tests`,
-`behavior`, `excerpt`. All requests identify a decision and a bounded scope.
-For an excerpt, include its file in `scope.files` and provide
-`excerpt: {file, startLine, endLine, ambiguity}`. Obtain semantic evidence for
-the same decision first; excerpts are capped at 80 lines and the configured
-per-turn byte proxy budget.
+Other check shapes: `{kind:"source", file, contains:string[], notContains:string[]}` with at least one non-empty pattern; `{kind:"review", question, files:string[]}` with a concrete question and non-empty evidence scope. Categories are `behavior`, `interface`, `invariant`.
 
-A packet contains `id`, `revision`, `question`, claims with typed EvidenceRefs,
-`confidence`, `exceptions`, `unresolved`, and explicit `excerpts`. EvidenceRefs
-carry IDs, locators, summaries and revisions. Packet IDs are runtime-generated.
-A missing/omitted claim is not a negative finding. Requests and packets are
-persisted together under `runs/<run-id>/evidence/`.
+Task `acceptanceCriteria[N]` requires mandatory coverage `acceptance:N`; `constraints[N]` requires `constraint:N`. Commands alone or criteria alone are not a migration substitute. Every task has at least one mandatory obligation. `verificationCommands` are extra blocking checks. Optional obligations may be violated/unverified without blocking mandatory acceptance; their reports remain visible.
 
-## TaskContract / WorkerOutcome
+ObligationResult contains id, requirementId, `verified|violated|unverified`, summary and EvidenceRefs. Results are pinned to `candidate:<digest>` for uncommitted candidates. A candidate mutation invalidates every result. Literal assertions prove literal text conditions, not arbitrary behavior.
 
-A contract binds task ID/version, base commit, goal, write scopes, constraints,
-acceptance criteria, runnable checks, dependencies, local context hints and
-escalation conditions. Workers return task ID and active contract version with
-one outcome: `candidate_ready`, `needs_context`, `local_failure`,
-`contract_conflict`, `environment_failure`, `budget_exhausted`, or `blocked`.
+## TaskContract and immutable retries
 
-`candidate_ready` is never acceptance. Only the independent verifier and Git
-integration path can accept it. A changed contract invalidates retained Worker
-context. Capability escalation uses the existing contract and candidate workspace.
+TaskContract retains id/version/goal/baseRevision/writeScopes/constraints/acceptanceCriteria/verificationCommands/dependencies/contextHints/escalateWhen and adds `obligations` and `knowledgeRefs:[{id,digest}]`.
 
-For a contract conflict, provide a short semantic `conflict` describing the
-incompatible requirement/interface/invariant. For a structural blocker, use:
+Runtime automatically binds structural references from write scopes and hints. Dispatch checks digest identity, fresh status and corroborated validation. Replanning revises/retire affected tasks, increments revised versions and creates fresh worktrees/sessions. Integrated contracts are immutable; defects require forward corrective work.
 
-```json
-{
-  "status": "blocked",
-  "projectIssue": {
-    "kind": "architecture_assumption_invalidated",
-    "summary": "The shared interface has a different ownership boundary than planned"
-  }
-}
-```
+WorkerOutcome remains `candidate_ready|needs_context|local_failure|contract_conflict|environment_failure|budget_exhausted|blocked`, with taskId/contractVersion, summary, changedFiles, checksRun, evidence, optional requestedContext/conflict/projectIssue, residualRisks. This artifact is a claim, never task/project acceptance. `projectIssue` is a diagnostic hint, not an event override.
 
-The other structural kind is `task_graph_blocked`. Local and environment failures
-must not use this channel. Ordinary outcome fields stay in execution artifacts.
+## Knowledge and delta
 
-## PlannerEvent / PlanDelta
+IR schema v3 adds Git tree identity and `knowledge`. Legacy v1/v2 indexes are bootstrap/refresh input, not trusted v3 assessments. KnowledgeRecord fields:
 
-Planner events are `INITIAL_REQUIREMENT`, `CONTRACT_CONFLICT`,
-`ARCHITECTURE_ASSUMPTION_INVALIDATED` and `TASK_GRAPH_BLOCKED`. Replan events
-contain a bounded issue, optional task/contract version and evidence archive IDs.
-They do not contain full WorkerOutcomes or diff/log payloads.
+| Field | Meaning |
+| --- | --- |
+| `id`, `statement` | Stable semantic record and its claim |
+| `kind` | `fact` or `hypothesis` |
+| `source` | `builder`, `scout` or `deterministic` |
+| `sourceScope`, `evidence` | Impact scopes and revision-pinned references |
+| `validation` | `candidate`, `corroborated` or `rejected` |
+| `status` | `fresh` or `dirty` |
+| `revision`, `digest`, `evidenceDigest` | Indexed revision, semantic hash, evidence-scope fingerprint |
 
-PlanDelta supplies reason, revised/added tasks, cancelled/invalidated IDs and
-unaffected IDs. Validation preserves untouched tasks and rejects accepted-task
-mutation, ID reuse/collisions and unschedulable/no-op changes. Revised contracts
-receive a new version and a fresh task workspace/session. Invalidated tasks must
-be replaced by revised specs or removed with dependencies updated.
+Matching revision/file existence does not establish semantic support. Model claims require independent evidence assessment when critical. Scoped refresh returns selected semantic entries and optional `removedKnowledgeIds`; unrelated entries are merged unchanged, with dirty status retained. Builder does not own `decisions`.
 
-## Artifact history
+ProjectDelta contains fromRevision/toRevision, actual changedFiles, dirtyKnowledgeIds, changes `{id, kind:added|changed|removed, beforeDigest?,afterDigest?}`. The integration delta initially records dirty markers; demand-time refresh records actual semantic changes. Changed/removed/rejected bound records invalidate pending contracts; new global constraints impact pending work. `affectedTaskIds` identifies contracts a delta must revise/retire.
+
+## ArchitectureView, evidence and deferral
+
+ArchitectureView schema remains 1 and adds prioritized knowledge records with explicit validation/freshness. It retains repository/module/interface/capability/dependency/constraint/decision/unresolved sections and omitted counts. No full architecture prose, source bodies or Worker trajectories are automatically injected.
+
+EvidenceRequest identifies question, decision, scope `{modules,symbols,files}` and types `interfaces|dependencies|callers|tests|behavior|excerpt`. EvidencePacket contains generated id, revision, question, claims with EvidenceRefs/validation, confidence, exceptions, unresolved, explicit excerpts.
+
+Scout evidence must remain inside requested file/module boundaries. References are checked for committed blob, protected paths and valid line range. Independent Reviewer tests semantic support before promoting Scout claims. Negative or uncertain claims remain in the catalogue as hypotheses/rejections. Exact-tree caches can reuse results after rebinding revisions; changing a tree invalidates cache reuse.
+
+Excerpts require earlier semantic evidence for the same decision, an ambiguity, a file in scope.files and 1–80 lines. Explicit raw and semantic bytes have separate budgets. Default data budgets: 12000 semantic, 2000 raw, 6 requests. These are UTF-8 proxies, not full provider token accounting.
+
+`defer_decision` terminates with `{status:"needs_evidence", reason, requests}` (1–3 semantic requests). Runtime retrieves evidence and resumes planning in a new session. Default maximum two deferrals; unresolved/budget-exhausted planning fails closed. `inspect_task` retrieves full contracts during replanning while the initial graph payload remains coarse.
+
+## Diagnosis and Planner events
+
+DiagnosticReport has generated id, classification `implementation|context|environment|contract|inconclusive`, bounded summary and observations `{obligationId,expected,observed,evidence}`.
+
+Expected text must match an actual obligation description or a bound knowledge statement (`knowledge:<record-id>`). Contract classification needs a scoped reference at the exact baseRevision and concrete expected/observed proof; candidate edits or Worker status are insufficient. Runtime projects assessed diagnosis into a short PlannerEvent. Bound-knowledge contradiction uses ARCHITECTURE_ASSUMPTION_INVALIDATED; other task-contract contradictions use CONTRACT_CONFLICT. Actual unschedulable graph state uses TASK_GRAPH_BLOCKED. INITIAL_REQUIREMENT is the initial decision reason.
+
+PlanDelta preserves reason, revisedTasks, addedTasks, cancelledTaskIds, invalidatedTaskIds, unaffectedTaskIds and optional authored decisions. Validation rejects unsafe ids, duplicates, unknown changes, accepted-task mutations, cycles, retired id reuse, no-op deltas and omission of affected invalid contracts. Requirement/project acceptance does not have a weakening delta channel. Planner events have issue, evidenceIds, optional task/version and affectedTaskIds; they omit raw debug logs/diffs.
+
+## Project repair and decisions
+
+Final verification repeats project obligations plus mandatory integrated-task obligations and all integrated/planned/configured commands. Failure diagnostics precede a repair contract. Repair Coordinator chooses only authorized/narrower scopes; runtime attaches original failed obligations with new unique ids/coverage. Every correction is independently verified and integrated, then full acceptance repeats. Defaults: two project repair rounds, eight project replans.
+
+DecisionProposal has id/area/summary/rationale/rejectedAlternatives/evidence/taskIds. Evidence ids reference catalogue records, contained EvidenceRefs or `requirement:<id>`. Runtime independently demands decision knowledge and copies a historical basis. A proposed decision activates only after corroborated basis, linked task integration and full project acceptance; cancellation supersedes it. Existing active decisions require a new id for a new choice. Legacy unauthored records remain superseded.
+
+## Checkpoints and artifacts
 
 | Artifact | Meaning |
 | --- | --- |
-| `tasks/T1-v1.json`, `tasks/T1-v2.json` | Every dispatched contract version |
-| `tasks/T1.json` | Latest dispatched version |
-| `outcomes/T1-v2-attempt-1-candidate_ready.json` | Versioned task-cycle outcome |
-| `T1-v2-1.verification.json` | Independent candidate checks |
-| `planner-view-N-REASON.json` | Actual initial architecture projection |
-| `planner-event-N.json`, `plan-delta-N.json` | Replan trigger and committed changes |
-| `evidence/E-UUID.json` | Saved request and packet |
-| `project-snapshot.json` | Latest accepted integration-state IR |
-| `metrics.json` | Role usage and explicit context-channel byte proxies |
-| `state.json`, `result.json` | Final run status, including early planning failures |
+| `tasks/T1-vN.json`, `tasks/T1.json` | Every dispatched contract, latest dispatch |
+| `outcomes/…json`, `T1-vN-attempt.verification.json` | Reported outcome and independently observed checks |
+| `task-state-T1.json` | Current running/verified/integrated_pending/project_accepted/failed/invalid state |
+| `planner-view-*`, `planner-deferral-*`, `planner-event-*`, `plan-delta-*` | Decision inputs, unresolved requests, triggers and plan changes |
+| `project-delta-*`, `knowledge-impact-*` | Dirty propagation and semantic change evidence |
+| `evidence/E-*.json`, `diagnostic-*.json` | Bounded evidence requests/results and classifications |
+| `checkpoint.json` and Git retention ref | Resumable accepted integration state and budgets |
+| `project-snapshot.json`, project cache | Revision-tagged knowledge, potentially with deferred dirty entries |
+| `final-N.verification.json` | Each complete integration acceptance attempt |
+| `metrics.json`, `state.json`, `result.json` | Role use, explicit budgets and terminal status |
+| `final.patch` | Exported only from complete project acceptance |
 
-## Executable conformance checks
+RunCheckpoint schema 1 includes runId, requirement, original base, integrationRevision, configDigest, plan, ir, integrated/cancelled task ids, contract versions, repair/replan counters, artifact sequence and metrics. Git ref: `refs/pi-coordination/runs/<id>/integration`. Atomic JSON plus reachable commits retain progress after worktree cleanup.
 
-| Semantics | Test file |
-| --- | --- |
-| Planner has architecture tools and no raw repository tools | `test/planner.test.ts` |
-| Role commit is terminal and duplicate commits are blocked | `test/planner.test.ts` |
-| Scoped revision-pinned evidence; dirty edits excluded; budgets enforced | `test/evidence.test.ts` |
-| Knowledge construction is separate, read-only and cached | `test/knowledge-builder.test.ts` |
-| Local failure/needs_context reuse the Worker | `test/task-loop.test.ts` |
-| Candidate verification and stronger implementation escalation | `test/task-loop.test.ts` |
-| Contract v2 invalidates retained Worker state | `test/task-loop.test.ts` |
-| Real worktrees, conflict cleanup, fresh v2 Worker, patch export | `test/runtime.test.ts` |
-| Accepted integration refresh does not wake Planner | `test/runtime.test.ts` |
-| Scope, symlink and patch-byte correctness | Existing verifier/path/workspace tests |
+Per-contract attempt counters persist across resume, preserving all outcome/verification cycles without overwrites.
 
-These checks use simulated model sessions and real filesystem/Git operations.
-They establish routing and artifact behavior, not authenticated-provider quality.
+Resume requires original config/base HEAD and consistent retained history. It refuses completed runs and overlapping live resume on the same local host. It restarts unfinished Workers, preserving already integrated tasks. Failure before a valid plan/checkpoint requires a new run after remediation.
+
+## Conformance
+
+`test/mechanisms.test.ts` covers uncovered obligations, semantic uncertainty, selective pending invalidation, unchanged unaffected versions, final repair, environment-interrupted resume, unsupported conflicts, Scout promotion/rejection, tree cache reuse, fresh deferred decisions, oscillating repair budgets, optional results, mutation invalidation, scope-derived references, new scoped constraints, historical decision bases and run leases. Other tests retain committed-source/scopes/budgets/version/worktree/patch checks. Models are simulated; filesystem and Git operations are real. See [VALIDATION.md](VALIDATION.md) for what was actually executed.

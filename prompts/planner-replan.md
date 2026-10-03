@@ -1,4 +1,4 @@
-A project-level event requires judgment. Make the smallest justified plan change.
+A diagnosed project event or changed knowledge dependency requires a bounded plan delta.
 
 ## Requirement
 {{REQUIREMENT}}
@@ -6,13 +6,10 @@ A project-level event requires judgment. Make the smallest justified plan change
 ## Architecture View
 {{ARCHITECTURE_VIEW}}
 
-## Current plan
+## Current graph
 {{CURRENT_PLAN}}
 
-## Project event
+## Assessed project event
 {{TRIGGER}}
 
-Evidence IDs identify archived outcome records or packets. Use request_evidence
-to verify disputed facts against this view's revision. Do not debug implementation
-failures. Preserve unaffected tasks. Accepted tasks cannot be retroactively cancelled
-or invalidated; use forward corrective tasks. Call commit_plan_delta exactly once.
+Use inspect_task for exact current contracts and request_evidence for a disputed fact. The event is a semantic projection; implementation logs and candidate diffs are archived separately. Revise or retire every affected contract, preserve unaffected contracts, and retain the original requirement/project acceptance obligations. Integrated tasks cannot be rewritten retroactively; use forward corrective tasks. Supply new authored decisions only when a project choice changes. Commit_plan_delta once, or defer_decision if evidence remains insufficient.

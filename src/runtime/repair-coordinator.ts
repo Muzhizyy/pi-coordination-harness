@@ -1,3 +1,4 @@
+import { loadPrompt } from "../prompts.js";
 import { Type } from "typebox";
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import type { HarnessConfig, PlanTaskSpec, ProjectPlan, RunMetrics, VerificationObligation, VerificationResult } from "../types.js";
@@ -34,7 +35,7 @@ export class RepairCoordinator {
         return { content: [{ type: "text", text: "Corrective contract captured; stop." }], details: {} };
       } });
     const session = await this.pi.createRoleSession({ cwd: workspace, profile: this.config.scout ?? this.config.worker,
-      systemPrompt: "Convert final integration verification failures into one bounded corrective task. Choose relevant files and tests within authorized scopes. Do not redesign architecture, change requirements, weaken checks or report success. Worker will inspect and implement. Call commit_repair_task once.", tools: [tool.name], customTools: [tool], extensionFactories: [terminalExtension(tool.name, () => captured !== undefined, 12)] });
+      systemPrompt: await loadPrompt("repair-system.md"), tools: [tool.name], customTools: [tool], extensionFactories: [terminalExtension(tool.name, () => captured !== undefined, 12)] });
     try {
       await session.prompt(JSON.stringify({ verification, failedObligations: failed, authorizedScopes: authorized, architecture: projectArchitecture(ir.index, verification.failures.join(" "), 6000) }));
       if (!captured) throw new Error("Repair coordinator did not create a corrective contract");

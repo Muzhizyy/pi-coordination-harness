@@ -15,7 +15,7 @@
 
 **Pi Coordination Harness 将 Pro / Flash 协作变成一套可以从终端运行的开发流程。** 给它一个仓库和一项需求：Pro 组织任务，Flash 推进实现，通过验证后交付补丁。
 
-V0.2 将 Pro 设为短生命周期的架构决策角色：独立的快速 Knowledge Builder 读取已提交源码，Pro 消费 Architecture View 并按需请求结构化证据；Flash 在局部任务会话中持续检索、编辑、测试与修复。任务契约、独立 Git worktree 与独立验证连接两类循环。同一套协作思路也提供 **Model Coordination Skill** Agent Skill，方便在其他编码宿主中使用。
+V0.3 把需求、知识、契约、诊断与集成验收连接成闭环：Pro 做项目决策，Flash 推进实现，独立审查验证语义依据，最终失败进入有界修复，Git 检查点支持续跑。详见 [完整项目机制](docs/MECHANISM.zh-CN.md) 和 [实施计划](docs/IMPLEMENTATION_PLAN.md)。
 
 <p align="center"><a href="#你能得到什么">核心能力</a> · <a href="#快速开始">快速开始</a> · <a href="#一项需求如何流转">协作流程</a> · <a href="#查看与应用结果">交付结果</a></p>
 
@@ -26,10 +26,12 @@ V0.2 将 Pro 设为短生命周期的架构决策角色：独立的快速 Knowle
 | **角色专用 Agent loop** | Pro 按项目事件完成决策后退出，Flash 在任务内保留实现与调试历史。 |
 | **架构层 Planner** | 查询模块、接口、约束与影响范围，通过 Evidence Request 按需获取证据。 |
 | **独立知识与检索角色** | Knowledge Builder 和 Scout 使用只读快模型会话，默认采用 Flash 配置。 |
-| **持久化 Project IR v2** | 沉淀模块职责、接口归属、依赖、能力与决策，并在验收集成后更新。 |
+| **分层 Project IR v3** | 区分假设、经审查事实、脏记录与作者决策；按需刷新。 |
 | **每项任务独立会话** | Flash 在重试中保留自己的编辑、测试和调试上下文。 |
 | **临时 Git worktree** | 候选修改在独立工作区进行，与原始 checkout 分开。 |
-| **先验证，再集成** | 检查写入范围、审查变化，并执行任务指定的验证命令。 |
+| **逐项义务验收** | 需求、验收与约束有明确覆盖，必选义务缺证据就停止接受。 |
+| **诊断与整体修复** | 先确认失败原因，再补上下文、升级实现或重规划；修复后完整复验。 |
+| **可恢复集成进度** | 保留 Git 引用与检查点，续跑跳过已经集成的任务。 |
 | **可审阅的补丁** | 获得 `final.patch`，同时保留任务结果与验证记录。 |
 
 核心在于**按需协作**：任务内的迭代交给 Flash，需要项目级决策时再由 Pro 参与。遇到复杂的局部实现，也可以保留原有任务契约，配置 Pro 模型接手。
@@ -68,7 +70,7 @@ cp pi-coordination.config.example.json pi-coordination.config.json
 }
 ```
 
-替换模型占位符，将验证命令改为**目标项目实际使用的命令**。[完整示例](pi-coordination.config.example.json)还包含沙箱与重试设置；如需由 Pro 接手复杂实现，可配置 `proWorker`。Pro 和 Flash 表示角色，不绑定特定供应商。可选 `scout` 可单独指定知识构建与证据检索模型，否则沿用 Flash。`plannerContext` 默认每轮决策提供 12000/2000 的架构/源码预算和 6 次证据请求；前两者按 UTF-8 字节保守估算，不是供应商精确 token 数。
+替换模型占位符，将验证命令改为**目标项目实际使用的命令**。[完整示例](pi-coordination.config.example.json)还包含沙箱与重试设置；如需由 Pro 接手复杂实现，可配置 `proWorker`。Pro 和 Flash 表示角色，不绑定特定供应商。可选 `scout` 可单独指定知识构建与证据检索模型，否则沿用 Flash。可选 `reviewer` 指定独立语义审查模型，默认采用 Pro。`plannerContext` 默认每轮决策提供 12000/2000 的架构/源码预算和 6 次证据请求；前两者按 UTF-8 字节保守估算，不是供应商精确 token 数。
 
 ### 3. 提出需求
 
@@ -87,42 +89,49 @@ node dist/cli.js run \
 
 ```mermaid
 flowchart TD
-    R[需求与 Project IR] --> P[Pro]
-    P -->|任务契约| F[独立 Git worktree 中的 Flash]
-    F --> V[范围检查与验证命令]
-    V -->|局部反馈| F
-    F -->|项目级冲突| P
-    F -->|实现升级| S[沿用同一契约的 Pro]
-    S --> V
-    V -->|接受修改| I[集成工作区]
-    I --> O[最终验证 → final.patch]
+    P["Requirement and Planner"] --> C["Obligations and knowledge-bound contract"]
+    C --> W["Worker implementation"]
+    W --> V["Independent verification"]
+    V -->|local failure| W
+    W -->|disputed or exhausted| D["Diagnosis"]
+    D -->|proven contract conflict| P
+    D -->|implementation or context| W
+    V -->|verified| I["Integration checkpoint"]
+    I -->|next task| K["Demand refresh and impact check"]
+    K --> C
+    I -->|all tasks integrated| F["Complete project acceptance"]
+    F -->|diagnosed failure| R["Authorized corrective contract"]
+    R --> K
+    F -->|pass| O["Accepted patch"]
 ```
 
-以增加分页为例，Pro 先查询架构视图中的接口、依赖与可复用能力，必要时请求调用方、测试行为的证据，再用任务契约描述改动。Flash 带着相关源码上下文推进实现；测试失败，反馈回到它的当前会话；发现接口冲突，则结束 Worker 会话，向 Pro 提交简短的项目事件，由它按需获取新证据并重规划。普通 diff 与测试日志留在执行记录中。
+计划先枚举需求，为必选需求建立项目义务；任务验收与约束映射到命令、源码断言或独立语义审查。候选自报完成不构成接受。必选义务通过、实际改动符合范围且检查没有改写候选，才允许集成。
 
-通过验收的任务提交进入集成工作区，快速 Knowledge Builder 刷新该版本的 IR，不因此唤醒 Pro。最终检查通过后导出补丁。重规划后的任务递增契约版本，并从新 Worker 会话开始；所有已派发版本均保留。
+集成后先标脏，下一任务真正依赖相关知识时再刷新和审查。只有受影响的待执行契约重签版本并使用新会话。Worker 的冲突声明先经过独立诊断，Planner 接收有基准证据的语义事件。
+
+最终重跑原项目义务、已集成任务的必选义务和验证命令。失败产生原授权范围内的纠正任务；默认最多两轮，超限仍保留检查点。整体通过后才激活有证据的决策并导出补丁。状态和完整流程见 [机制说明](docs/MECHANISM.zh-CN.md)。
 
 ## 查看与应用结果
 
 命令返回运行 ID、已接受任务、补丁路径和指标路径。产物保存在目标仓库中：
 
-```text
-.agent-orch/
-  project/                    # 可复用的项目知识
-  runs/<run-id>/
-    requirement.md            # 原始需求
-    plan.json                 # 任务关系
-    tasks/                    # 最新及历史版本任务契约
-    outcomes/                 # 模型执行结果
-    *.verification.json       # 检查与证据
-    evidence/                 # 结构化证据请求与结果
-    planner-view-*.json        # 实际投影的架构视图
-    planner-event-*.json       # 项目事件
-    plan-delta-*.json          # 重规划历史
-    project-snapshot.json      # 已接受集成状态的 IR
-    metrics.json              # 角色用量及显式上下文预算
-    final.patch               # 待审阅补丁
+| 位置 | 内容 |
+| --- | --- |
+| `.agent-orch/project/` | 带版本和证据状态的知识与检索缓存、作者决策 |
+| `.agent-orch/runs/<run-id>/tasks/`、`outcomes/` | 已派发契约版本和局部执行历史 |
+| `*.verification.json`、`evidence/`、`diagnostic-*.json` | 实际检查、证据与诊断 |
+| `planner-*`、`plan-delta-*`、`project-delta-*` | 决策视图、暂缓、事件与影响传播 |
+| `checkpoint.json`、`task-state-*`、`metrics.json` | 恢复状态、任务阶段与角色指标 |
+| `final.patch` | 整体接受后的补丁 |
+
+环境恢复后，用原配置和原基准 HEAD 续跑：
+
+```sh
+node dist/cli.js resume --repo /path/to/your-project \
+  --config ./pi-coordination.config.json --run-id <run-id>
 ```
+
+集成提交保留在 `refs/pi-coordination/runs/<run-id>/integration`。续跑跳过已集成任务；有效计划形成前的早期失败，解决问题后新开运行。
 
 检查补丁后，在目标仓库中使用实际返回的运行 ID：
 
@@ -155,6 +164,8 @@ npm run check
 
 <sub>当前版本适配、验证覆盖及运行边界见 [验证记录](docs/VALIDATION.md)。</sub>
 
-## 从 V0.1 升级
+## 从 V0.1 / V0.2 升级
 
-已有 JSON 模型配置仍然有效，新字段采用默认值。V1 Project IR 会在下一次运行时由快速 Knowledge Builder 刷新为 v2。原 checkout 的 IR 保持与原提交一致，应用并提交补丁后才更新；本次运行快照记录拟集成版本的知识。以代码直接创建 `HarnessConfig` 时需提供 `plannerContext`。
+已有 JSON 配置仍可使用，新增诊断、修复和暂缓预算采用默认值。旧 IR 升级为 v3 待审查知识，缺少作者依据的旧决策保留为 superseded。新任务不能只有字符串验收，必须声明 obligations 覆盖；旧运行记录没有新检查点，不能直接续跑。代码调用方须补齐 HarnessConfig、ProjectPlan、TaskContract 新字段。
+
+缓存可以标识拟集成版本，不代表原 checkout 已修改；应用并提交补丁后，同一代码树可复用证据。真实模型质量、OS 沙箱和成本收益仍需实际环境验证，见 [验证记录](docs/VALIDATION.md)。

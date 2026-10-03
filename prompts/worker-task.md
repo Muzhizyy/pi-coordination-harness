@@ -1,11 +1,11 @@
-Implement exactly this bounded task.
+Implement this bounded task.
 
-## TaskContract
+## Immutable TaskContract
 {{TASK_CONTRACT}}
 
-## Role-specific Project IR slice
+## Local project knowledge
 {{PROJECT_CONTEXT}}
 
-The filesystem is an isolated task workspace. Use read/grep/find/ls/edit/write/bash as needed. The runtime will independently check the diff, write scopes and verification commands.
+This is an isolated worktree at baseRevision. Read local source, implement within writeScopes, and run appropriate checks. All mandatory obligations must have independent evidence. Verification checks actual changed files and rejects source changes during checks. Project acceptance later repeats integrated checks, so avoid regressions outside the immediate obligation.
 
-When you have either a candidate patch or a precise blocker, call `submit_outcome` exactly once.
+When a candidate or precise blocker is ready, call submit_outcome once.

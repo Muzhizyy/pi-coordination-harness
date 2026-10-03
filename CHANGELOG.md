@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 — Unreleased
+
+- Require evidence-covered task/project obligations for requirements, criteria and constraints.
+- Separate hypotheses, corroborated facts and dirty state; bind contract hashes and demand scoped refresh before dispatch.
+- Diagnose before escalation or replanning; reject unsupported Worker conflict claims.
+- Add bounded project repair with immutable original acceptance, persistent Git/JSON checkpoints and explicit resume.
+- Promote assessed Scout evidence; preserve Planner-authored rationale and historical decision bases.
+- Reuse exact-tree evidence, prioritize uncertain context and permit terminal decision deferral.
+- Expand conformance tests, role prompts, full mechanism, migration and protocol documentation.
+
+This is a local source update, not a published release.
+
 ## 0.2.0 — Unreleased
 
 - Separate fast Knowledge Builder and Evidence Scout roles from Pro planning.

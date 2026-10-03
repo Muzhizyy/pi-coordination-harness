@@ -32,7 +32,10 @@
   },
   "budgets": {
     "workerVerificationRetries": 2,
-    "fastWorkerAttempts": 2
+    "fastWorkerAttempts": 2,
+    "diagnosisCalls": 2,
+    "projectRepairAttempts": 2,
+    "plannerDeferrals": 2
   },
   "verification": {
     "finalCommands": []

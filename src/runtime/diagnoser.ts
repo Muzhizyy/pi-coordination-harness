@@ -1,3 +1,4 @@
+import { loadPrompt } from "../prompts.js";
 import { randomUUID } from "node:crypto";
 import { Type } from "typebox";
 import { defineTool } from "@earendil-works/pi-coding-agent";
@@ -56,7 +57,7 @@ export class Diagnoser {
       },
     });
     const session = await this.pi.createRoleSession({ cwd: workspace, profile: this.config.scout ?? this.config.worker,
-      systemPrompt: "Diagnose, do not implement. Check the active contract against pinned base facts and observed verification. Separate implementation mistakes, missing context, environment problems and invalid contracts. A Worker saying contract_conflict is insufficient. Escalate to contract only with a concrete expected/observed contradiction backed by base source. Do not infer author intent. If evidence is insufficient classify inconclusive. Call submit_diagnosis once.",
+      systemPrompt: await loadPrompt("diagnostic-system.md"),
       tools: [tool.name], customTools: [tool], extensionFactories: [terminalExtension(tool.name, () => captured !== undefined, 12)] });
     try {
       await session.prompt(JSON.stringify({ contract, outcome, verification, sources }));

@@ -1,4 +1,4 @@
-Create the project-level execution plan for this requirement.
+Create the initial project plan.
 
 ## Requirement
 {{REQUIREMENT}}
@@ -6,7 +6,4 @@ Create the project-level execution plan for this requirement.
 ## Architecture View
 {{ARCHITECTURE_VIEW}}
 
-Use architecture tools for missing global facts and request_evidence for scoped
-decision-relevant uncertainty. Reuse existing capabilities. Task contracts must
-be self-contained for a worker that does not receive this conversation. Include
-real verification commands and compatibility constraints. Call commit_plan once.
+Use requirement ids, mandatory project acceptance obligations, task obligation coverage, knowledgeRefs, dependencies and authorized writeScopes. Keep acceptance meaningful and independently observable. Include authored decisions with explicit basis, or an empty decisions list. Ask for scoped missing facts; defer_decision is the correct terminal result when critical uncertainty prevents planning. Otherwise call commit_plan once.

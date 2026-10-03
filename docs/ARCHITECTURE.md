@@ -1,147 +1,83 @@
-# Architecture — V0.2
+# Architecture — V0.3
 
-Pi supplies sessions and model/tool execution. The harness assigns different
-context sources, tools, control flow and lifetimes to each role.
+Pi Coordination Harness runs serial, isolated coding tasks under immutable, verifiable contracts. The final artifact is a patch for an accepted integration state. The runtime, not model self-report, controls transitions.
+
+The detailed Chinese walkthrough is [MECHANISM.zh-CN.md](MECHANISM.zh-CN.md); the six-gap implementation plan is [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+
+## Control and authority
+
+| Component | Authority | Lifetime |
+| --- | --- | --- |
+| ProjectRuntime | Validate graph/coverage, bind knowledge, schedule, integrate, checkpoint, repair and export | One run or explicit resume |
+| Knowledge Builder | Propose source-backed module/interface/capability/constraint records | Read-only committed-snapshot session |
+| Evidence Scout | Answer a scoped decision question, including exceptions and uncertainty | Read-only committed-snapshot session |
+| Pro Planner | Author requirements, acceptance obligations, contracts, deltas and decisions | Fresh bounded decision session |
+| Worker / optional Strong Worker | Implement within one task id/version/base/scope | Persistent unchanged-contract session; fresh session for capability escalation |
+| Independent Reviewer | Assess semantic support of obligations or knowledge candidates | Bounded evidence-only session, no repository tools |
+| Diagnoser | Classify observed failure against contract and pinned base facts | Bounded evidence-only session |
+| Repair Coordinator | Choose a corrective scope inside original authorization | Bounded session; runtime attaches original failing checks |
+| Verifier / WorkspaceManager | Inspect exact candidate state; execute checks; commit/cherry-pick verified changes | Deterministic runtime code |
+
+Roles use explicit tool allowlists, terminal capture and tool-call limits. They do not load ambient extensions, skills, prompt templates or arbitrary repository context through Pi. Worker path policy and sandbox configuration govern the tools; final actual-diff checks enforce write scopes independently.
+
+## Knowledge is not a revision label
+
+Project IR v3 includes repository inventory, semantic architecture, conservative relative-import dependencies, uncertainty, authored decisions and a knowledge catalogue. Each KnowledgeRecord has a semantic digest, source scope, evidence-scope fingerprint, pinned references, provenance, validation and freshness.
+
+Builder output begins as a hypothesis/candidate. File and line validation establish valid references, not entailment. An independent Reviewer assesses critical statements. Corroborated fresh statements are factual inputs; rejected/dirty/unverified statements do not permit dispatch under a dependent contract. Deterministic import facts claim an indexed textual import relationship, not full dynamic/runtime dependency knowledge.
+
+Scout packets are independently assessed and written back into the reusable catalogue, including rejected or uncertain claims. Evidence cache entries key on the exact Git tree and scoped question; identical trees can reuse pinned claims after revision rebinding. Different trees cannot silently reuse cached positive or negative caller evidence.
+
+Integration marks affected records dirty and writes a ProjectDelta. It does not invoke a full model refresh. The next task demands only its bound dependencies plus necessary ownership context. Focused refresh merges selected records, explicitly handles removals and permits source-grounded new capabilities/constraints in affected modules. Unrelated dirty knowledge may remain deferred in the cache.
+
+After refresh, semantic digest changes, removed/rejected records and new global constraints trigger impact analysis on pending contracts. Planner revises/retires affected tasks; integrated tasks remain immutable. Implementation-only changes with unchanged corroborated architecture do not require replanning. This analysis is conservative and only as complete as indexed scopes and model-produced architecture.
+
+## Planner context and deferral
+
+Planner has architecture queries, `inspect_task` for current replan contracts, scoped evidence and a limited excerpt channel. No raw filesystem or shell tool is available. Architecture projections prioritize global invariants, unknown/dirty records and critical dependencies; omitted counts retain visibility of missing information. Full architecture prose and Worker transcripts are not injected automatically.
+
+Per session, architecture data, explicit source and evidence requests have hard limits. Byte proxies are distinct from provider token/cost metrics. The initial view reserves room for query responses. When missing evidence changes a decision, `defer_decision` terminates the session; runtime retrieves scoped evidence and starts a fresh bounded session with prepared packets. Default: at most two deferrals. Unresolved decisions stop rather than forcing an unsound contract. Rolling milestone planning is not implemented.
+
+## Acceptance and immutable contracts
+
+The plan enumerates Requirement ids and mandatory project-level obligations. Task obligations cover every acceptance/constraint index and refer to known requirements. Checks are commands, literal source assertions or scoped semantic reviews. Required obligation states must all be `verified`; `violated` and `unverified` block acceptance. Optional results remain visible. A successful generic command cannot establish unrelated behavior merely because it has been assigned a requirement id; authors must choose appropriate checks.
+
+Contract knowledge dependencies include explicit refs and structural refs derived from write scopes/hints: modules, owned interfaces, dependency records, capabilities and global constraints. Dispatch requires matching digests and fresh corroborated records. Contract revisions increment versions and get new worktrees/sessions. Same-contract local retries retain Worker history.
+
+Candidate verification checks actual tracked/staged/untracked state, write scope and non-empty change, runs checks and reviews, and fingerprints state before/after. Any source/unignored-state mutation invalidates evidence. The runtime checks the fingerprint again immediately before commit. Original checkout changes are never used as implicit task input.
+
+## Diagnosed escalation and project repair
 
 ```mermaid
 flowchart TD
-    R[Committed repository] --> K[Fast Knowledge Builder]
-    K --> IR[Architecture IR]
-    IR --> C[Context Projector]
-    C --> P[Pro decision session]
-    P -->|Scoped question| E[Evidence Resolver]
-    E -->|Semantic lookup| IR
-    E --> S[Fast Evidence Scout]
-    R --> S
-    S -->|Evidence Packet| P
-    P -->|Task Contract| W[Flash task session]
-    W --> V[Deterministic verifier]
-    V -->|Local failure| W
-    V -->|Verified candidate| I[Integration worktree]
-    I -->|Accepted revision| K
-    W -->|Project event| P
-    I --> F[Final checks and patch]
+    W["Worker candidate"] --> V["Task verification"]
+    V -->|local failure| W
+    W -->|disputed or exhausted| D["Independent diagnosis"]
+    D -->|implementation or context| S["Same-contract retry or Strong Worker"]
+    S --> W
+    D -->|base-proven contract conflict| P["Planner delta"]
+    P --> N["New version and session"]
+    N --> W
+    V -->|verified| I["Integrate and checkpoint"]
+    D -->|environment or inconclusive| C["Retain checkpoint and stop"]
 ```
 
-## Roles and loops
+Worker status is a claim. Diagnoses reference actual obligation/bound-knowledge statements, expected/observed facts and pinned base evidence. Only assessed contract contradictions become Planner events. Implementation/context failures stay local or escalate under the same contract; environment/inconclusive failures retain progress and stop. Default: two diagnostic calls per task and one optional Strong Worker handoff.
 
-| Role | Default context | Tools | Lifetime / terminal action |
-| --- | --- | --- | --- |
-| Knowledge Builder | Inventory, previous IR, changed committed files | Read-only repository inspection, `commit_project_ir` | Separate fast-model session per bootstrap/refresh |
-| Pro Planner | Bounded Architecture View, requirement, current plan on replan, semantic project event | Architecture inspection, `request_evidence`, `commit_plan` / `commit_plan_delta` | Fresh session for one project decision |
-| Evidence Scout | Scoped question and decision relevance | Read-only snapshot inspection, `submit_evidence` | Fresh fast-model session per semantic lookup |
-| Flash Worker | One TaskContract, relevant modules/capabilities, global constraints | Read/edit/write and sandboxed bash, `submit_outcome` | Same task session across local retries |
-| Strong Worker | Same contract, previous implementation failure | Worker tools | Optional fresh implementation session; no planning authority |
+Task states distinguish `task_verified`, `integrated_pending`, and `project_accepted`. After all tasks integrate, final verification repeats original project obligations, mandatory integrated-task obligations, integrated task verificationCommands, and configured/planned final commands.
 
-`scout` defaults to the Flash profile and supplies both knowledge operations.
-It is independent of the Pro Planner profile. Metrics record `knowledgeBuilder`
-and `scout` separately from planning.
+If final verification fails, restore the isolated integration worktree to its committed state and diagnose. Implementation/context findings generate a corrective contract inside the existing authorization; runtime preserves the failed checks. The correction goes through normal Worker/Verifier/integration, then full acceptance repeats. Architectural contradictions use forward Planner changes. Default: two final repair rounds, persisted across resume. Oscillation is bounded. No patch is exported before complete acceptance.
 
-The Planner never receives built-in `read`, `grep`, `find`, `ls`, `bash`, `edit`
-or `write` tools. It can inspect modules, interfaces, reusable capabilities,
-transitive impact and project constraints. It asks questions through
-`request_evidence`; it cannot browse a worker transcript or arbitrary host files.
-Automatic Pi context-file, extension and skill discovery is disabled for all roles.
-Registered safety extensions remain active.
+## Decisions and durable recovery
 
-Terminal hooks abort a role turn after successful artifact capture and block
-further tools. They also apply a 64-tool-call cutoff per invocation. A worker
-retry starts another invocation in the same session. Completion without the
-required artifact is an error, not implicit acceptance.
+Planner decisions carry rationale, rejected alternatives, task links and explicit knowledge/evidence/requirement ids. The runtime copies their historical basis, including statement, digest, revision and references. Builder cannot invent or replace rationale. Proposals become active only with corroborated bases, integrated linked tasks and complete project acceptance. Cancelled links supersede proposals. Legacy unproven decision records are retained as superseded background.
 
-## Architecture knowledge and projections
+Each stable transition saves an atomic JSON checkpoint and retains the integration commit with `refs/pi-coordination/runs/<run-id>/integration`. Checkpoints include requirement, config fingerprint, original base, integration revision, plan, knowledge, integrated/cancelled tasks, versions, budgets and metrics. Temporary worktrees can be removed without losing reachable progress.
 
-Project IR v2 contains module responsibilities/exclusions, public surfaces and
-associated tests; interface ownership/stability; capabilities; global invariants;
-dependency edges; structured decisions and their rationale/rejected alternatives;
-and unresolved facts. Evidence locators tie claims to source/docs/tests.
+Explicit `resume --run-id` requires original config/base HEAD, validates retained history, recreates the checkpoint worktree and skips integrated tasks. Unfinished tasks get fresh sessions. A per-run process lease refuses overlapping resume; a dead process owner can be reclaimed. Completed runs keep their verified patch. Early failure before a valid plan has no task checkpoint and requires a new run after fixing the cause. OS-process leases and worktree management assume one local host.
 
-A deterministic lexical index supplies relative JS/TS import edges. It is not a
-compiler graph: aliases, dynamic loading and other languages require semantic
-Scout evidence. Regex matches can be false positives; an indexed edge is a lead,
-not proof of runtime behavior.
+Run artifacts archive versions, outcomes, evidence, verification, views, deferrals, events, plan/knowledge deltas, diagnoses, states, metrics and final patch. Project knowledge is a revision-tagged cache and can describe proposed integration, so it is not proof that the original checkout already contains a change.
 
-The Planner projector retains a global module map and prioritizes constraints,
-related decisions, relevant modules and direct dependency neighbours. Omitted
-counts make truncation explicit. The Worker gets a task slice rather than the
-complete global architecture prose. Additional Worker context is resolved from
-IR and its existing local repository tools without waking Pro.
+## Operational limits
 
-`architectureTokens`, `rawCodeTokens` and `evidenceRequests` are per-Planner-turn
-budgets. The first two use serialized UTF-8 byte counts as conservative token
-proxies, not provider token accounting. Defaults are 12000, 2000 and 6. The
-architecture counter includes the initial view and successful semantic tool
-responses; it excludes prompts, current-plan text and conversation overhead.
-Source counters cover explicitly returned excerpts. They cannot detect code
-copied into a model-produced semantic field.
-
-## Evidence channel
-
-Interface/dependency questions first use IR. Caller/test/behavior questions go
-to a read-only fast Scout in a detached snapshot of the indexed commit. Scout
-claims carry exact committed file/line evidence, confidence, exceptions and
-uncertainty; the runtime verifies that referenced files exist at that revision.
-Semantic correctness still requires model judgment; existence is not entailment.
-
-Raw excerpts require preceding semantic evidence for the same decision, a
-scoped tracked file, a named unresolved ambiguity, valid 1–80 line bounds and
-remaining source budget. Excerpts come from Git blobs, so dirty checkout edits,
-path escapes and untracked host files cannot enter through this channel.
-Files over 256 KiB and binary files are refused. Denied read paths are refused.
-Requests and resulting packets are saved as evidence artifacts.
-
-## Event and retry routing
-
-| Signal | Runtime action | Planner wakeup |
-| --- | --- | --- |
-| Initial requirement | Build/reuse IR, create initial task graph | Yes |
-| `candidate_ready` | Independent scope/check verification; integrate only on success | No |
-| Test/verification failure | Retry the same Worker; bounded stronger implementation escalation if configured | No |
-| `needs_context` | Resolve additional IR context; continue the same Worker | No |
-| `local_failure` / `budget_exhausted` | Bounded local retries, then optional Strong Worker under the same contract | No |
-| `environment_failure` | Record failed run; no automatic architecture replan | No |
-| `contract_conflict` | Dispose Worker, remove candidate worktree, send bounded semantic conflict | Yes |
-| `blocked` + explicit architectural/dependency `projectIssue` | Same project-event path | Yes |
-| Unclassified `blocked` | Record failed run | No |
-| Scheduler has no executable unfinished task | Request task graph replan | Yes |
-
-Only the semantic conflict/project issue and an archive reference cross the
-Worker/Planner boundary. Diff bodies, check logs, changed-file lists and ordinary
-worker summaries remain in execution artifacts. New evidence is requested
-against accepted integration state. Replans are limited to eight per run.
-
-PlanDelta validation rejects unknown/colliding task IDs, ineffective changes,
-inconsistent dependencies and retroactive changes to accepted tasks. A triggering
-contract must be revised or retired. Revised tasks increment contract versions;
-a changed contract cannot resume the old Worker session. All contract versions,
-outcomes, views, events and deltas remain in the run history.
-
-## IR lifecycle and acceptance
-
-Canonical knowledge lives under the original repository's `.agent-orch/project/`.
-Fresh v2 knowledge at the same committed revision is reused. V1 or stale knowledge
-is refreshed by the Knowledge Builder. A revision change supplies prior knowledge
-plus the committed changed-file set. Inventories ignore staged/uncommitted files.
-
-After each verified task integration, a fast semantic refresh targets accepted
-changes and updates the in-run IR snapshot without invoking the Planner. That
-snapshot describes the proposed integrated revision. The original checkout's IR
-remains anchored to its original commit because the final patch is not applied
-there automatically. Applying and committing it triggers the next canonical
-refresh. An IR refresh failure stops the run rather than using stale knowledge.
-
-Task candidates execute in detached Git worktrees. Bash uses the pinned
-`@anthropic-ai/sandbox-runtime`; file tools have lexical/symlink path guards.
-Actual diff scopes are independently checked after verification commands.
-Only verified candidates are cherry-picked into the integration worktree.
-Final checks must not leave tracked modifications or newly created unignored files
-outside the exported committed state. A successful run exports `final.patch`; source edits stay out of the
-user checkout. Project/run metadata is written there under `.agent-orch/`.
-
-## Boundaries
-
-V0.2 is serial. It does not schedule parallel Workers, recover arbitrary process
-crashes, roll back accepted tasks, or provide full program analysis. Structured
-semantic fields are model-produced, not a formal guarantee against source leakage
-or incorrect architectural interpretation. See [protocol](PROTOCOL.md) and
-[validation](VALIDATION.md) for concrete interfaces and checked behavior.
+Models are simulated in conformance tests; Git/filesystem/patch operations are real. Live provider authentication, model quality, OS sandbox enforcement, large-project scale and performance/cost gains are not established by these tests. Semantic review is evidence-backed model judgment, not formal proof. The scheduler is serial; no distributed/parallel task consensus or rolling milestone protocol is claimed. See [VALIDATION.md](VALIDATION.md).

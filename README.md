@@ -15,7 +15,7 @@
 
 **Pi Coordination Harness turns Pro / Flash collaboration into a coding workflow you can run from the terminal.** Give it a repository and a requirement: Pro shapes the work, Flash implements it, and verification gates the patch you receive.
 
-V0.2 makes Pro a short-lived architecture decision role. A fast Knowledge Builder indexes committed source; Pro consumes Architecture View and requests scoped evidence. Flash keeps a persistent local inspect/edit/test/repair session. Task contracts, isolated Git worktrees and independent verification coordinate the handoff. The same collaboration approach is available as the **Model Coordination Skill** Agent Skill for other coding hosts.
+V0.3 closes the requirement, knowledge, contract, diagnosis and integration loops. Independent evidence review gates semantic claims, final failures enter bounded repair, and Git checkpoints support explicit resume. See [architecture](docs/ARCHITECTURE.md), [the implementation plan](docs/IMPLEMENTATION_PLAN.md) and [the full Chinese mechanism](docs/MECHANISM.zh-CN.md).
 
 <p align="center"><a href="#what-you-get">What you get</a> · <a href="#quick-start">Quick start</a> · <a href="#follow-a-task-through-the-runtime">The workflow</a> · <a href="#inspect-the-result">Your result</a></p>
 
@@ -26,10 +26,12 @@ V0.2 makes Pro a short-lived architecture decision role. A fast Knowledge Builde
 | **Role-specific loops** | Event-driven Pro decisions and persistent Flash implementation/retry sessions. |
 | **Architecture-first Planner** | Query modules, interfaces, invariants and impact; request narrow evidence instead of browsing source. |
 | **Fast knowledge and evidence roles** | Separate read-only Knowledge Builder and Scout sessions, using Flash by default. |
-| **Persistent Project IR v2** | Keep module ownership, stable interfaces, dependencies and decisions; refresh accepted changes. |
+| **Layered Project IR v3** | Separate hypotheses, corroborated facts, dirty records and authored decisions; refresh on demand. |
 | **A session for each task** | Flash retains its local edit/test/debug context through retries. |
 | **Temporary Git worktrees** | Candidate changes stay separate from your original checkout. |
-| **Verification before integration** | Check write scope, inspect changes, and run task-specific commands. |
+| **Obligation-based verification** | Require explicit coverage/evidence for requirements, acceptance and constraints. |
+| **Diagnosed project repair** | Classify failures before escalation; repeat complete original acceptance after correction. |
+| **Resumable integration** | Retain Git/checkpoint progress and skip integrated tasks on resume. |
 | **A patch to review** | Get `final.patch` alongside task outcomes and verification records. |
 
 The key idea is **selective collaboration**: Flash handles the iteration inside a task; Pro returns when the project needs a new decision. You can also configure a Pro model to take over a difficult implementation while keeping its existing contract.
@@ -68,7 +70,7 @@ Edit `pi-coordination.config.json` using provider/model IDs available in your Pi
 }
 ```
 
-Replace the model placeholders and set the verification commands for **your target project**. The [full example](pi-coordination.config.example.json) includes sandbox and retry settings. Add `proWorker` when you want a Pro model to handle implementation escalations. Pro and Flash describe roles; they do not lock you to a provider. Optional `scout` selects a separate fast profile for knowledge/evidence; otherwise Flash is used. `plannerContext` defaults to architecture/source budgets of 12000/2000 conservative UTF-8 byte units and 6 evidence requests per decision; these are proxies rather than provider token counts.
+Replace the model placeholders and set the verification commands for **your target project**. The [full example](pi-coordination.config.example.json) includes sandbox and retry settings. Add `proWorker` when you want a Pro model to handle implementation escalations. Pro and Flash describe roles; they do not lock you to a provider. Optional `scout` selects a separate fast profile for knowledge/evidence; otherwise Flash is used. Optional `reviewer` selects independent semantic assessment, defaulting to Pro. `plannerContext` defaults to architecture/source budgets of 12000/2000 conservative UTF-8 byte units and 6 evidence requests per decision; these are proxies rather than provider token counts.
 
 ### 3. Give it a task
 
@@ -87,42 +89,49 @@ For a longer brief, use `--requirement-file request.md`. Prefer a named command?
 
 ```mermaid
 flowchart TD
-    R[Requirement + Project IR] --> P[Pro]
-    P -->|TaskContract| F[Flash in a Git worktree]
-    F --> V[Scope checks + verification commands]
-    V -->|Local feedback| F
-    F -->|Project-level conflict| P
-    F -->|Implementation escalation| S[Pro with the same contract]
-    S --> V
-    V -->|Accepted change| I[Integration worktree]
-    I --> O[Final verification → final.patch]
+    P["Requirement and Planner"] --> C["Obligations and knowledge-bound contract"]
+    C --> W["Worker implementation"]
+    W --> V["Independent verification"]
+    V -->|local failure| W
+    W -->|disputed or exhausted| D["Diagnosis"]
+    D -->|proven contract conflict| P
+    D -->|implementation or context| W
+    V -->|verified| I["Integration checkpoint"]
+    I -->|next task| K["Demand refresh and impact check"]
+    K --> C
+    I -->|all tasks integrated| F["Complete project acceptance"]
+    F -->|diagnosed failure| R["Authorized corrective contract"]
+    R --> K
+    F -->|pass| O["Accepted patch"]
 ```
 
-For a change such as pagination, Pro queries the relevant interfaces, dependencies and reusable capabilities in Architecture View, requests decision-relevant caller/test evidence if needed, then describes the change through task contracts. Flash works on those contracts with the relevant source context. If tests fail, the evidence returns to its existing session. An interface conflict ends the Worker session; Pro receives a short semantic project event and can request fresh evidence to revise the affected contract. Ordinary diff and test-log payloads stay in task artifacts.
+Plans enumerate requirements and mandatory project obligations. Tasks map acceptance/constraints to commands, literal assertions or independent reviews. Candidate self-report is never acceptance: mandatory evidence, actual scope and unchanged verification state gate integration.
 
-Accepted task commits are combined in an integration worktree. A fast knowledge refresh updates the in-run architecture after each acceptance without a Planner wakeup. Final checks run there before patch export. Revised contracts receive a new version and fresh Worker session; all dispatched versions are retained.
+Integration dirties affected knowledge. The next task demands its dependencies; changed hashes invalidate only affected pending contracts, which receive new versions/sessions. Worker conflict claims require independent base-backed diagnosis before a semantic Planner event.
+
+Final acceptance repeats original project obligations and integrated task checks. Failures create authorized corrective tasks followed by complete reverification, defaulting to two rounds. Checkpoints retain progress. Only complete acceptance activates supported decisions and exports the patch.
 
 ## Inspect the result
 
 The command returns the run ID, accepted task IDs, patch path, and metrics path. Artifacts stay under the target repository:
 
-```text
-.agent-orch/
-  project/                    # reusable project knowledge
-  runs/<run-id>/
-    requirement.md            # your original request
-    plan.json                 # the task graph
-    tasks/                    # latest and versioned task contracts
-    outcomes/                 # model-reported results
-    *.verification.json       # checks and evidence
-    evidence/                 # EvidenceRequest / EvidencePacket records
-    planner-view-*.json        # architecture context actually projected
-    planner-event-*.json       # semantic project events
-    plan-delta-*.json          # replan history
-    project-snapshot.json      # accepted integration-state IR
-    metrics.json              # role usage and explicit context budgets
-    final.patch               # the change to review
+| Location | Content |
+| --- | --- |
+| `.agent-orch/project/` | Revision-tagged knowledge/evidence caches and authored decisions |
+| `.agent-orch/runs/<run-id>/tasks/`, `outcomes/` | Dispatched contracts and local execution history |
+| `*.verification.json`, `evidence/`, `diagnostic-*.json` | Observed checks, evidence and diagnosis |
+| `planner-*`, `plan-delta-*`, `project-delta-*` | Views, deferrals, events and impacts |
+| `checkpoint.json`, `task-state-*`, `metrics.json` | Recovery, task phases and role metrics |
+| `final.patch` | Patch exported after project acceptance |
+
+After fixing an external/environment issue, resume with the original config/base HEAD:
+
+```sh
+node dist/cli.js resume --repo /path/to/your-project \
+  --config ./pi-coordination.config.json --run-id <run-id>
 ```
+
+Integration is retained at `refs/pi-coordination/runs/<run-id>/integration`. Resume skips integrated work; early failure before a valid plan/checkpoint requires a new run after remediation.
 
 Review the patch, then apply it in the target repository with the returned run ID:
 
@@ -155,6 +164,8 @@ Built on [Pi](https://github.com/earendil-works/pi), with [MIT-licensed](LICENSE
 
 <sub>Current compatibility, verification coverage, and runtime boundaries are documented in the [validation notes](docs/VALIDATION.md).</sub>
 
-## Upgrade from V0.1
+## Upgrade from V0.1 / V0.2
 
-Existing JSON model configuration remains valid; new fields receive defaults. V1 Project IR is refreshed to v2 by the fast Knowledge Builder on the next run. The canonical original-checkout IR stays at its commit until you apply and commit the exported patch; the run snapshot records proposed integrated knowledge. Programmatic `HarnessConfig` callers must supply `plannerContext`.
+Existing JSON config receives default diagnosis/repair/deferral budgets. Legacy IR becomes v3 candidates; unauthored decisions remain superseded background. String-only criteria are insufficient: new plans require obligation coverage. Old runs have no resumable checkpoints. Programmatic callers must update HarnessConfig, ProjectPlan and TaskContract fields.
+
+Caches can describe proposed integration rather than the original checkout. Applying/committing a patch enables same-tree evidence reuse. Live model quality, OS sandbox enforcement and cost gains require separate validation; see [validation notes](docs/VALIDATION.md).

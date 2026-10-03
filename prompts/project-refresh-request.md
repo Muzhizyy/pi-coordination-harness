@@ -1,24 +1,22 @@
-Refresh the durable Project IR because the repository revision changed.
+Refresh knowledge demanded by the next task or decision.
 
-## Previous Architecture IR
+## Focused architecture background
 {{ARCHITECTURE}}
 
-## Previous Project index
+## Focused structured index
 {{PROJECT_INDEX}}
 
-## Durable decisions
+## Decision ownership
 {{DECISIONS}}
 
-## Revision change
-Previous revision: {{PREVIOUS_REVISION}}
+## Revisions
+Previous indexed revision: {{PREVIOUS_REVISION}}
 Current revision: {{CURRENT_REVISION}}
 
-## Changed tracked files
+## Changed tracked files / demanded evidence scope
 {{CHANGED_FILES}}
 
-## Current deterministic inventory
+## Deterministic inventory
 {{INVENTORY}}
 
-Update only the architectural facts affected by this change. Preserve still-valid module responsibilities, interfaces, capabilities and constraints. Use targeted read/grep/find/ls when the changed files or their direct dependents can alter the project-level model. Do not turn implementation churn into architecture churn.
-
-Every changed durable claim should remain evidence-backed. Keep uncertainty explicit. Call `commit_project_ir` exactly once with the complete refreshed IR.
+REFRESH_SCOPE supplied below is authoritative for this operation. A scoped refresh returns a partial catalogue; runtime preserves unrelated entries. Keep stable semantic ids, update observable interface/constraint facts, and explicitly report removedKnowledgeIds. Describe uncertainty when evidence cannot establish a claim. Implementation-only edits need not change semantic descriptions. Decisions and historical rationale are owned by Planner. Call commit_project_ir once.
