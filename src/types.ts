@@ -332,4 +332,5 @@ export interface RunMetrics {
   plannerContext: { architectureUnits: number; rawCodeUnits: number; evidenceRequests: number };
   plannerWakeups: Array<{ reason: string; at: string }>;
   taskAttempts: Record<string, number>;
+  contractAttempts: Record<string, number>;
 }

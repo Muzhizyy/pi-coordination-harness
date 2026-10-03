@@ -149,17 +149,24 @@ for (const interrupt of [false, true]) test(`final integration failures create a
       assert.ok(await gitOk(root, ["rev-parse", `refs/pi-coordination/runs/${runId}/integration`]));
       assert.equal(cp.ir.index.decisions[0].status, "proposed");
       assert.equal(JSON.parse(await readFile(join(store, "state.json"), "utf8")).status, "failed");
+      await assert.rejects(runtime.resume(runId), /diagnosis: environment/);
       unavailable = false;
       result = await runtime.resume(runId);
     } else result = await runtime.run("Update API and prepare flags");
     assert.equal(firstWorkers, 1);
-    assert.equal(repairs, interrupt ? 2 : 1);
+    assert.equal(repairs, interrupt ? 3 : 1);
     assert.deepEqual(result.acceptedTasks, ["T1", "repair-1"]);
     const dir = join(root, ".agent-orch/runs", result.runId);
     assert.equal(JSON.parse(await readFile(join(dir, "final-0.verification.json"), "utf8")).ok, false);
     assert.equal(JSON.parse(await readFile(join(dir, "final-1.verification.json"), "utf8")).ok, true);
     assert.equal((await new ProjectIrStore(root).load()).index.decisions![0].status, "active");
     assert.equal(JSON.parse(await readFile(join(dir, "task-state-T1.json"), "utf8")).state, "project_accepted");
+    if (interrupt) {
+      const outcomes = await readdir(join(dir, "outcomes"));
+      assert.ok(outcomes.includes("repair-1-v1-attempt-1-environment_failure.json"));
+      assert.ok(outcomes.includes("repair-1-v1-attempt-2-environment_failure.json"));
+      assert.ok(outcomes.includes("repair-1-v1-attempt-3-candidate_ready.json"));
+    }
     assert.equal(await readFile(join(root, "src/flags.txt"), "utf8"), "pending\n");
     assert.equal((await git(root, ["apply", "--check", result.patchPath])).exitCode, 0);
     assert.ok(pi.sessions.every((s) => s.disposed));

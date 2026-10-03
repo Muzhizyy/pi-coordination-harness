@@ -22,6 +22,7 @@ export function emptyRunMetrics(): RunMetrics {
     plannerContext: { architectureUnits: 0, rawCodeUnits: 0, evidenceRequests: 0 },
     plannerWakeups: [],
     taskAttempts: {},
+    contractAttempts: {},
   };
 }
 

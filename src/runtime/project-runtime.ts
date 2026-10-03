@@ -49,6 +49,7 @@ export class ProjectRuntime {
     const workspace = new WorkspaceManager(this.repo, runId);
     const release = await store.acquire();
     const metrics = previous?.metrics ?? emptyRunMetrics();
+    metrics.contractAttempts ??= {};
     const integrated = new Set(previous?.integratedTasks ?? []);
     const cancelled = new Set(previous?.cancelledTasks ?? []);
     const versions = new Map(previous?.versions ?? []);
@@ -127,16 +128,18 @@ export class ProjectRuntime {
         const version = versions.get(task.id) ?? 1;
         versions.set(task.id, version);
         const contract = makeContract(task, await workspace.integrationHead(), version);
+        const attemptKey = `${task.id}@v${version}`;
+        const attemptOffset = metrics.contractAttempts[attemptKey] ?? 0;
         await store.writeTask(contract);
         await store.writeArtifact(`task-state-${task.id}`, { state: "running", version, baseRevision: contract.baseRevision });
         try {
           const loop = new WorkerTaskLoop(this.config,
             (role) => new WorkerTaskSession(taskPath, role === "worker" ? this.config.worker : this.config.strongWorker!, this.config, this.pi, metrics, role),
             (worker) => verifier.verifyTask(taskPath, contract, (command) => worker.execSandboxed(command)), {
-              outcome: store.writeOutcome.bind(store), verification: (result, attempt) => store.writeVerification(`${task.id}-v${version}-${attempt}`, result),
+              outcome: (outcome, attempt) => store.writeOutcome(outcome, attemptOffset + attempt), verification: (result, attempt) => store.writeVerification(`${task.id}-v${version}-${attemptOffset + attempt}`, result),
               context: async (question) => `Additional verified project context for ${question}:\n${JSON.stringify(projectArchitecture(ir.index, question, 6000, contract.knowledgeRefs.map((r) => r.id)))}\nInspect local source under the SAME active contract.`,
               diagnose: async (outcome, verification) => { const report = await diagnoser.inspect(taskPath, contract, outcome, verification, ir.index); await store.writeArtifact(report.id, report); return report; },
-              attempt: () => { metrics.taskAttempts[task.id] = (metrics.taskAttempts[task.id] ?? 0) + 1; },
+              attempt: () => { metrics.taskAttempts[task.id] = (metrics.taskAttempts[task.id] ?? 0) + 1; metrics.contractAttempts[attemptKey] = (metrics.contractAttempts[attemptKey] ?? 0) + 1; },
             });
           const result = await loop.execute(contract, workerProjectContext(ir, contract));
           if (result.status === "project_event") {

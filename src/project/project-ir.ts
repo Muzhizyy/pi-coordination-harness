@@ -97,9 +97,10 @@ export class ProjectIrStore {
 
   async saveSnapshot(snapshot: ProjectIrSnapshot): Promise<void> {
     const { index } = snapshot;
+    snapshot.decisions = `# Durable project decisions\n\n${JSON.stringify(index.decisions ?? [], null, 2)}\n`;
     await writeText(this.architecturePath, snapshot.architecture);
     await writeJson(this.indexPath, index);
-    await writeText(this.decisionsPath, `# Durable project decisions\n\n${JSON.stringify(index.decisions ?? [], null, 2)}\n`);
+    await writeText(this.decisionsPath, snapshot.decisions);
     await writeJson(this.manifestPath, {
       schemaVersion: 1,
       indexedRevision: index.revision,
