@@ -1,9 +1,11 @@
 import type { PlanDelta, PlanTaskSpec, ProjectPlan, TaskContract } from "../types.js";
+import { validateCoverage, validateTaskObligations } from "../verifier/obligations.js";
 
 export function applyPlanDelta(plan: ProjectPlan, delta: PlanDelta): ProjectPlan {
   const cancelled = new Set([...delta.cancelledTaskIds, ...delta.invalidatedTaskIds]);
+  const revised = new Set(delta.revisedTasks.map((t) => t.id));
   const byId = new Map<string, PlanTaskSpec>();
-  for (const task of plan.tasks) if (!cancelled.has(task.id)) byId.set(task.id, task);
+  for (const task of plan.tasks) if (!cancelled.has(task.id) || revised.has(task.id)) byId.set(task.id, task);
   for (const task of delta.revisedTasks) byId.set(task.id, task);
   for (const task of delta.addedTasks) byId.set(task.id, task);
   return { ...plan, tasks: [...byId.values()] };
@@ -42,6 +44,8 @@ export function makeContract(task: PlanTaskSpec, baseRevision: string, version =
     dependencies: task.dependencies,
     contextHints: task.contextHints,
     escalateWhen: task.escalateWhen,
+    obligations: task.obligations,
+    knowledgeRefs: task.knowledgeRefs,
   };
 }
 
@@ -71,4 +75,6 @@ export function validatePlan(plan: ProjectPlan): void {
     visited.add(id);
   }
   for (const id of tasks.keys()) visit(id);
+  for (const task of tasks.values()) validateTaskObligations(task);
+  validateCoverage(plan);
 }

@@ -9,6 +9,7 @@ export class WorkspaceManager {
   private integrationPath?: string;
 
   constructor(private readonly repo: string, private readonly runId: string) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(runId)) throw new Error("Invalid run id");
     this.root = join(tmpdir(), "pi-coordination-harness", `${basename(repo)}-${runId}`);
   }
 
@@ -44,7 +45,20 @@ export class WorkspaceManager {
     await gitOk(taskPath, ["-c", "user.name=Pi Coordination Harness", "-c", "user.email=role-harness@local", "commit", "-m", `role-harness: ${taskId}`]);
     const commit = await gitOk(taskPath, ["rev-parse", "HEAD"]);
     await gitOk(this.integrationPath, ["-c", "user.name=Pi Coordination Harness", "-c", "user.email=role-harness@local", "cherry-pick", commit]);
-    return commit;
+    return this.integrationHead();
+  }
+
+  get checkpointRef(): string { return `refs/pi-coordination/runs/${this.runId}/integration`; }
+  async checkpoint(): Promise<string> {
+    const revision = await this.integrationHead();
+    await gitOk(this.repo, ["update-ref", this.checkpointRef, revision]);
+    return revision;
+  }
+  async resetIntegration(): Promise<void> {
+    if (!this.integrationPath) throw new Error("Integration workspace not created");
+    // Only this isolated worktree is reset; user checkout is never touched.
+    await gitOk(this.integrationPath, ["reset", "--hard", "HEAD"]);
+    await gitOk(this.integrationPath, ["clean", "-fd"]);
   }
 
   async removeTask(taskPath: string): Promise<void> {

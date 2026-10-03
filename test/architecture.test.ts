@@ -44,7 +44,7 @@ test("worker slice does not include global prose or sibling modules with similar
   assert.ok(!context.includes("GLOBAL_PROSE_SENTINEL"));
 });
 
-test("IR v2 records committed import edges and rejects saving against a different revision", async () => {
+test("IR v3 records committed import edges and rejects saving against a different revision", async () => {
   const root = await mkdtemp(join(tmpdir(), "architecture-ir-"));
   try {
     await gitOk(root, ["init"]);
@@ -58,7 +58,7 @@ test("IR v2 records committed import edges and rejects saving against a differen
     const store = new ProjectIrStore(root);
     const input = { ...index, revision, architectureMarkdown: "Architecture" };
     await store.saveSemantic(input);
-    assert.equal((await store.load()).index.schemaVersion, 2);
+    assert.equal((await store.load()).index.schemaVersion, 3);
     assert.deepEqual((await store.load()).index.dependencies, [{ from: "payment", to: "retry", kind: "import", evidence: ["src/payment/client.ts"] }]);
     await store.markStale();
     assert.equal((await store.manifest()).status, "stale");

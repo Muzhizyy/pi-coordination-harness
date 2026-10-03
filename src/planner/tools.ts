@@ -1,6 +1,7 @@
 import { Type } from "typebox";
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import type { PlanDelta, ProjectIrIndex, ProjectPlan } from "../types.js";
+import { ObligationSchema, DecisionSchema } from "./protocol-schema.js";
 
 const ContextHintsSchema = Type.Object({
   files: Type.Array(Type.String()),
@@ -9,7 +10,7 @@ const ContextHintsSchema = Type.Object({
   capabilities: Type.Array(Type.String()),
 });
 
-const TaskSchema = Type.Object({
+export const TaskSchema = Type.Object({
   id: Type.String(),
   goal: Type.String(),
   writeScopes: Type.Array(Type.String()),
@@ -19,6 +20,8 @@ const TaskSchema = Type.Object({
   dependencies: Type.Array(Type.String()),
   contextHints: ContextHintsSchema,
   escalateWhen: Type.Array(Type.String()),
+  obligations: Type.Array(ObligationSchema, { minItems: 1 }),
+  knowledgeRefs: Type.Array(Type.Object({ id: Type.String(), digest: Type.String() })),
 });
 
 export function createCommitProjectIrTool(capture: (value: {
@@ -30,6 +33,7 @@ export function createCommitProjectIrTool(capture: (value: {
   unresolved: string[];
   dependencies?: ProjectIrIndex["dependencies"];
   decisions?: ProjectIrIndex["decisions"];
+  removedKnowledgeIds?: string[];
 }) => void) {
   return defineTool({
     name: "commit_project_ir",
@@ -52,7 +56,7 @@ export function createCommitProjectIrTool(capture: (value: {
       constraints: Type.Array(Type.Object({ id: Type.String(), summary: Type.String(), evidence: Type.Array(Type.String()) })),
       unresolved: Type.Array(Type.String()),
       dependencies: Type.Array(Type.Object({ from: Type.String(), to: Type.String(), kind: Type.Literal("semantic"), evidence: Type.Array(Type.String()) })),
-      decisions: Type.Array(Type.Object({ id: Type.String(), area: Type.String(), summary: Type.String(), rationale: Type.String(), rejectedAlternatives: Type.Array(Type.String()), evidence: Type.Array(Type.String()) })),
+      removedKnowledgeIds: Type.Optional(Type.Array(Type.String())),
     }),
     execute: async (_id, params) => {
       capture(params);
@@ -71,6 +75,9 @@ export function createCommitPlanTool(capture: (value: ProjectPlan) => void) {
       assumptions: Type.Array(Type.String()),
       tasks: Type.Array(TaskSchema),
       finalVerificationCommands: Type.Array(Type.String()),
+      requirements: Type.Array(Type.Object({ id: Type.String(), description: Type.String(), mandatory: Type.Boolean() }), { minItems: 1 }),
+      projectObligations: Type.Array(ObligationSchema, { minItems: 1 }),
+      decisions: Type.Array(DecisionSchema),
     }),
     execute: async (_id, params) => {
       capture(params);
@@ -91,6 +98,7 @@ export function createCommitPlanDeltaTool(capture: (value: PlanDelta) => void) {
       cancelledTaskIds: Type.Array(Type.String()),
       invalidatedTaskIds: Type.Array(Type.String()),
       unaffectedTaskIds: Type.Array(Type.String()),
+      decisions: Type.Optional(Type.Array(DecisionSchema)),
     }),
     execute: async (_id, params) => {
       capture(params);

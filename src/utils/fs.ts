@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 
 export async function ensureDir(path: string): Promise<void> {
@@ -19,5 +20,7 @@ export async function writeText(path: string, content: string): Promise<void> {
 }
 
 export async function writeJson(path: string, value: unknown): Promise<void> {
-  await writeText(path, `${JSON.stringify(value, null, 2)}\n`);
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  await writeText(temporary, `${JSON.stringify(value, null, 2)}\n`);
+  await rename(temporary, path);
 }

@@ -14,6 +14,9 @@ const DEFAULTS: Omit<HarnessConfig, "planner" | "worker"> = {
   budgets: {
     workerVerificationRetries: 2,
     fastWorkerAttempts: 2,
+    diagnosisCalls: 2,
+    projectRepairAttempts: 2,
+    plannerDeferrals: 2,
   },
   verification: { finalCommands: [] },
 };
@@ -34,13 +37,14 @@ export async function loadConfig(path: string): Promise<HarnessConfig> {
     worker: (raw.flash ?? raw.worker)!,
     strongWorker: raw.proWorker ?? raw.strongWorker,
     scout: raw.scout,
+    reviewer: raw.reviewer,
     plannerContext: { ...DEFAULTS.plannerContext, ...raw.plannerContext },
     sandbox: { ...DEFAULTS.sandbox, ...raw.sandbox },
     budgets: { ...DEFAULTS.budgets, ...raw.budgets },
     verification: { ...DEFAULTS.verification, ...raw.verification },
   };
-  for (const [role, profile] of Object.entries({ pro: config.planner, flash: config.worker, proWorker: config.strongWorker, scout: config.scout })) {
-    if (profile === undefined && (role === "proWorker" || role === "scout")) continue;
+  for (const [role, profile] of Object.entries({ pro: config.planner, flash: config.worker, proWorker: config.strongWorker, scout: config.scout, reviewer: config.reviewer })) {
+    if (profile === undefined && ["proWorker", "scout", "reviewer"].includes(role)) continue;
     if (!profile || typeof profile.provider !== "string" || !profile.provider.trim() || typeof profile.model !== "string" || !profile.model.trim()) {
       throw new Error(`${role} must specify non-empty provider and model strings`);
     }
@@ -53,7 +57,7 @@ export async function loadConfig(path: string): Promise<HarnessConfig> {
       throw new Error(`plannerContext.${key} must be an integer >= ${minimum}`);
     }
   }
-  for (const [key, minimum] of [["fastWorkerAttempts", 1], ["workerVerificationRetries", 0]] as const) {
+  for (const [key, minimum] of [["fastWorkerAttempts", 1], ["workerVerificationRetries", 0], ["diagnosisCalls", 1], ["projectRepairAttempts", 0], ["plannerDeferrals", 0]] as const) {
     if (!Number.isSafeInteger(config.budgets[key]) || config.budgets[key] < minimum) {
       throw new Error(`budgets.${key} must be an integer >= ${minimum}`);
     }

@@ -10,7 +10,7 @@ import { gitOk } from "../src/utils/exec.js";
 import { config, simpleIndex, fakePi } from "./support.ts";
 import type { PiRuntime } from "../src/pi/session.js";
 
-test("Knowledge Builder uses a separate fast read-only role, reuses fresh IR and refreshes committed changes", async () => {
+test("Knowledge Builder uses a separate fast read-only role, reuses IR and dirties committed changes until explicitly demanded", async () => {
   const root = await mkdtemp(join(tmpdir(), "knowledge-"));
   try {
     await gitOk(root, ["init"]);
@@ -41,6 +41,9 @@ test("Knowledge Builder uses a separate fast read-only role, reuses fresh IR and
     await gitOk(root, ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "change"]);
     const refreshed = await builder.ensure();
     assert.notEqual(initial.index.revision, refreshed.index.revision);
+    assert.equal(pi.sessions.length, 1);
+    assert.ok(refreshed.index.knowledge?.some((k) => k.status === "dirty"));
+    await builder.refresh(refreshed, ["module:core", "interface:API"]);
     assert.equal(pi.sessions.length, 2);
     assert.ok(pi.sessions[1].prompts[0].includes("Changed tracked files"));
     assert.equal((await new ProjectIrStore(root).manifest()).status, "fresh");

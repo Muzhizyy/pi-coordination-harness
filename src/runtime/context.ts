@@ -16,5 +16,7 @@ export function workerProjectContext(ir: ProjectIrSnapshot, contract: TaskContra
     JSON.stringify(capabilities, null, 2),
     "\n# Project constraints",
     JSON.stringify(constraints, null, 2),
+    "\n# Bound knowledge (fresh corroborated facts; hypotheses are not obligations)",
+    JSON.stringify(ir.index.knowledge?.filter((k) => contract.knowledgeRefs?.some((r) => r.id === k.id)), null, 2),
   ].join("\n");
 }

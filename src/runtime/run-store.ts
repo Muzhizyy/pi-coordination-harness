@@ -2,10 +2,12 @@ import { join } from "node:path";
 import type { EvidencePacket, EvidenceRequest, EvidenceRef, PlanDelta, PlannerEvent, ProjectPlan, RunMetrics, TaskContract, VerificationResult, WorkerOutcome } from "../types.js";
 import type { ProjectIrSnapshot } from "../project/project-ir.js";
 import { ensureDir, readJson, writeJson, writeText } from "../utils/fs.js";
+import type { RunCheckpoint } from "./checkpoint.js";
 
 export class RunStore {
   readonly dir: string;
   constructor(repo: string, readonly runId: string) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(runId)) throw new Error("Invalid run id");
     this.dir = join(repo, ".agent-orch", "runs", runId);
   }
 
@@ -42,6 +44,16 @@ export class RunStore {
     return writeJson(join(this.dir, `${name}.verification.json`), result);
   }
   writeMetrics(metrics: RunMetrics): Promise<void> { return writeJson(join(this.dir, "metrics.json"), metrics); }
+  writeCheckpoint(checkpoint: RunCheckpoint): Promise<void> { return writeJson(join(this.dir, "checkpoint.json"), checkpoint); }
+  readCheckpoint(): Promise<RunCheckpoint> { return readJson(join(this.dir, "checkpoint.json")); }
+  writeArtifact(name: string, value: unknown): Promise<void> {
+    if (!/^[A-Za-z0-9_.-]+$/.test(name)) throw new Error("Invalid artifact name");
+    return writeJson(join(this.dir, `${name}.json`), value);
+  }
+  async markRunning(): Promise<void> {
+    const state = await readJson<Record<string, unknown>>(join(this.dir, "state.json"));
+    await writeJson(join(this.dir, "state.json"), { ...state, status: "running", resumedAt: new Date().toISOString() });
+  }
   writeFinalPatch(patch: string): Promise<void> { return writeText(join(this.dir, "final.patch"), patch); }
   async finish(status: "complete" | "failed", details: Record<string, unknown> = {}): Promise<void> {
     const finishedAt = new Date().toISOString();

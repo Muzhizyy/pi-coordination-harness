@@ -15,7 +15,7 @@ function words(text: string): string[] {
 }
 
 /** Keep a global module map; focus the detailed view on the current decision. */
-export function projectArchitecture(index: ProjectIrIndex, query: string, budget: number): ArchitectureView {
+export function projectArchitecture(index: ProjectIrIndex, query: string, budget: number, criticalIds: string[] = []): ArchitectureView {
   const terms = words(query);
   const relevant = (value: unknown) => terms.reduce((n, term) => n + (JSON.stringify(value).toLowerCase().includes(term) ? 1 : 0), 0);
   const ranked = [...index.modules].sort((a, b) => relevant(b) - relevant(a) || a.id.localeCompare(b.id));
@@ -30,8 +30,9 @@ export function projectArchitecture(index: ProjectIrIndex, query: string, budget
     schemaVersion: 1, revision: index.revision, repository: index.repository,
     moduleMap: [], modules: [], interfaces: [], capabilities: [], dependencies: [],
     constraints: [], decisions: [], unresolved: [], omitted: {},
+    knowledge: [],
   };
-  const append = (key: keyof Pick<ArchitectureView, "moduleMap" | "modules" | "interfaces" | "capabilities" | "dependencies" | "constraints" | "decisions" | "unresolved">, values: unknown[]) => {
+  const append = (key: keyof Pick<ArchitectureView, "moduleMap" | "modules" | "interfaces" | "capabilities" | "dependencies" | "constraints" | "decisions" | "unresolved" | "knowledge">, values: unknown[]) => {
     let omitted = 0;
     for (const value of values) {
       (view[key] as unknown[]).push(value);
@@ -41,13 +42,19 @@ export function projectArchitecture(index: ProjectIrIndex, query: string, budget
   };
   // Global invariants and decision rules receive priority over detailed module descriptions.
   append("constraints", index.constraints);
+  // Missing facts and dirty dependencies are decision inputs, not low-priority footnotes.
+  append("unresolved", index.unresolved);
+  const records = [...(index.knowledge ?? [])].sort((a, b) => {
+    const score = (k: typeof a) => (criticalIds.includes(k.id) ? 100 : 0) + (k.status === "dirty" ? 8 : 0) + (k.validation !== "corroborated" ? 4 : 0) + relevant(k);
+    return score(b) - score(a);
+  });
+  append("knowledge", records.filter((k) => criticalIds.includes(k.id) || relevant(k) > 0 || k.status === "dirty"));
   append("moduleMap", index.modules.map(({ id, responsibility }) => ({ id, responsibility })));
   append("decisions", [...(index.decisions ?? [])].sort((a, b) => relevant(b) - relevant(a)));
   append("modules", ranked.filter((m) => moduleIds.has(m.id)));
   append("interfaces", index.interfaces.filter((i) => moduleIds.has(i.owner ?? "") || relevant(i) > 0));
   append("capabilities", [...index.capabilities].sort((a, b) => relevant(b) - relevant(a)));
   append("dependencies", (index.dependencies ?? []).filter((d) => moduleIds.has(d.from) || moduleIds.has(d.to)));
-  append("unresolved", index.unresolved);
   if (contextUnits(view) > budget) throw new Error("Architecture metadata exceeds planner context budget");
   return view;
 }

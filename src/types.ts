@@ -11,6 +11,7 @@ export interface HarnessConfig {
   worker: ModelProfile;
   strongWorker?: ModelProfile;
   scout?: ModelProfile;
+  reviewer?: ModelProfile;
   plannerContext: {
     architectureTokens: number;
     rawCodeTokens: number;
@@ -26,6 +27,9 @@ export interface HarnessConfig {
   budgets: {
     workerVerificationRetries: number;
     fastWorkerAttempts: number;
+    diagnosisCalls: number;
+    projectRepairAttempts: number;
+    plannerDeferrals: number;
   };
   verification: {
     finalCommands: string[];
@@ -57,6 +61,8 @@ export interface TaskContract {
     capabilities: string[];
   };
   escalateWhen: string[];
+  obligations: VerificationObligation[];
+  knowledgeRefs: KnowledgeRef[];
 }
 
 export type WorkerOutcomeStatus =
@@ -92,13 +98,71 @@ export interface PlanTaskSpec {
   dependencies: string[];
   contextHints: TaskContract["contextHints"];
   escalateWhen: string[];
+  obligations: VerificationObligation[];
+  knowledgeRefs: KnowledgeRef[];
 }
+
+export interface Requirement { id: string; description: string; mandatory: boolean }
+export interface VerificationObligation {
+  id: string;
+  requirementId: string;
+  description: string;
+  category: "behavior" | "interface" | "invariant";
+  mandatory: boolean;
+  /** acceptance:0 / constraint:0 in the owning task. */
+  covers: string[];
+  check: { kind: "command"; command: string }
+    | { kind: "source"; file: string; contains: string[]; notContains: string[] }
+    | { kind: "review"; question: string; files: string[] };
+}
+export interface ObligationResult {
+  id: string;
+  requirementId: string;
+  status: "verified" | "violated" | "unverified";
+  summary: string;
+  evidence: EvidenceRef[];
+}
+export interface KnowledgeRef { id: string; digest: string }
+export interface KnowledgeRecord {
+  id: string;
+  kind: "fact" | "hypothesis";
+  statement: string;
+  source: "builder" | "scout" | "deterministic";
+  sourceScope: string[];
+  evidence: EvidenceRef[];
+  validation: "candidate" | "corroborated" | "rejected";
+  status: "fresh" | "dirty";
+  revision: string;
+  digest: string;
+  evidenceDigest: string;
+}
+export interface ProjectDelta {
+  fromRevision: string;
+  toRevision: string;
+  changedFiles: string[];
+  dirtyKnowledgeIds: string[];
+  changes: Array<{ id: string; kind: "added" | "changed" | "removed"; beforeDigest?: string; afterDigest?: string }>;
+}
+export interface DecisionProposal {
+  id: string; area: string; summary: string; rationale: string;
+  rejectedAlternatives: string[]; evidence: string[]; taskIds: string[];
+}
+export interface DiagnosticReport {
+  id: string;
+  classification: "implementation" | "context" | "environment" | "contract" | "inconclusive";
+  summary: string;
+  observations: Array<{ obligationId: string; expected: string; observed: string; evidence: EvidenceRef[] }>;
+}
+export interface PlannerDeferral { status: "needs_evidence"; reason: string; requests: EvidenceRequest[] }
 
 export interface ProjectPlan {
   summary: string;
   assumptions: string[];
   tasks: PlanTaskSpec[];
   finalVerificationCommands: string[];
+  requirements: Requirement[];
+  projectObligations: VerificationObligation[];
+  decisions: DecisionProposal[];
 }
 
 export interface PlanDelta {
@@ -108,10 +172,11 @@ export interface PlanDelta {
   cancelledTaskIds: string[];
   invalidatedTaskIds: string[];
   unaffectedTaskIds: string[];
+  decisions?: DecisionProposal[];
 }
 
 export interface ProjectIrIndex {
-  schemaVersion: 1 | 2;
+  schemaVersion: 1 | 2 | 3;
   revision: string;
   generatedAt: string;
   repository: {
@@ -157,6 +222,8 @@ export interface ProjectIrIndex {
   unresolved: string[];
   dependencies?: ArchitectureDependency[];
   decisions?: ArchitectureDecision[];
+  knowledge?: KnowledgeRecord[];
+  tree?: string;
 }
 
 export interface ArchitectureDependency {
@@ -173,6 +240,9 @@ export interface ArchitectureDecision {
   rationale: string;
   rejectedAlternatives: string[];
   evidence: string[];
+  taskIds?: string[];
+  status?: "proposed" | "active" | "superseded";
+  revision?: string;
 }
 
 export interface ArchitectureView {
@@ -188,6 +258,7 @@ export interface ArchitectureView {
   decisions: ArchitectureDecision[];
   unresolved: string[];
   omitted: Record<string, number>;
+  knowledge?: KnowledgeRecord[];
 }
 
 export interface EvidenceRequest {
@@ -202,7 +273,7 @@ export interface EvidencePacket {
   id: string;
   revision: string;
   question: string;
-  claims: Array<{ statement: string; evidence: EvidenceRef[] }>;
+  claims: Array<{ statement: string; evidence: EvidenceRef[]; validation?: KnowledgeRecord["validation"] }>;
   confidence: "high" | "medium" | "low";
   exceptions: string[];
   unresolved: string[];
@@ -217,6 +288,7 @@ export interface PlannerEvent {
   contractVersion?: number;
   issue: string;
   evidenceIds: string[];
+  affectedTaskIds?: string[];
 }
 
 export interface VerificationResult {
@@ -229,6 +301,8 @@ export interface VerificationResult {
     output: string;
   }>;
   failures: string[];
+  obligations?: ObligationResult[];
+  candidateDigest?: string;
 }
 
 export interface RoleMetrics {
@@ -250,6 +324,9 @@ export interface RunMetrics {
   strongWorker: RoleMetrics;
   scout: RoleMetrics;
   knowledgeBuilder: RoleMetrics;
+  reviewer: RoleMetrics;
+  diagnostic: RoleMetrics;
+  repair: RoleMetrics;
   plannerContext: { architectureUnits: number; rawCodeUnits: number; evidenceRequests: number };
   plannerWakeups: Array<{ reason: string; at: string }>;
   taskAttempts: Record<string, number>;

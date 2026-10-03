@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import { WorkerTaskLoop } from "../src/worker/task-loop.js";
 import { WorkerTaskSession } from "../src/worker/worker-runtime.js";
 import { makeContract, validatePlanDelta } from "../src/runtime/plan.js";
-import { config, model, fakePi } from "./support.ts";
+import { config, model, fakePi, obligation, planFields } from "./support.ts";
 import { emptyRunMetrics } from "../src/runtime/metrics.js";
 import type { PiRuntime } from "../src/pi/session.js";
 import type { ProjectPlan, WorkerOutcome } from "../src/types.js";
 
-const task = { id: "T1", goal: "Update", writeScopes: ["src/**"], constraints: [], acceptanceCriteria: [], verificationCommands: [], dependencies: [], contextHints: { files: [], symbols: [], tests: [], capabilities: [] }, escalateWhen: [] };
+const task = { id: "T1", goal: "Update", writeScopes: ["src/**"], constraints: [], acceptanceCriteria: [], verificationCommands: [], dependencies: [], contextHints: { files: [], symbols: [], tests: [], capabilities: [] }, escalateWhen: [], obligations: [obligation("T1.check")], knowledgeRefs: [] };
 const contract = makeContract(task, "a".repeat(40));
 const outcome = (status: WorkerOutcome["status"], extra: Partial<WorkerOutcome> = {}): WorkerOutcome => ({ status, taskId: "T1", contractVersion: 1, summary: "result", changedFiles: [], checksRun: [], evidence: [], residualRisks: [], ...extra });
 const verified = { ok: true, changedFiles: ["src/main.ts"], commands: [], failures: [] };
@@ -26,6 +26,7 @@ function rig(outcomes: WorkerOutcome[], failures = 0, strong = false) {
     };
     workers.push(worker); return worker;
   }, async () => ++verifies <= failures ? { ...verified, ok: false, failures: ["TEST_FAILED"] } : verified, {
+    diagnose: async (o) => ({ id: "D1", classification: o.status === "contract_conflict" ? "contract" : o.status === "environment_failure" ? "environment" : "implementation", summary: o.summary, observations: [] }),
     outcome: async () => {}, verification: async () => {}, context: async () => { contexts++; return "Extra local facts"; }, attempt: () => attempts++,
   });
   return { loop, workers, stats: () => ({ contexts, verifies, attempts }) };
@@ -61,7 +62,7 @@ test("project conflict ends the Worker loop, while stale and environment outcome
   assert.equal(r.stats().verifies, 0);
   assert.equal(r.workers[0].disposals, 1);
   await assert.rejects(rig([outcome("candidate_ready", { contractVersion: 0 })]).loop.execute(contract, "local"), /active task contract/);
-  await assert.rejects(rig([outcome("environment_failure")]).loop.execute(contract, "local"), /environment_failure/);
+  await assert.rejects(rig([outcome("environment_failure")]).loop.execute(contract, "local"), /environment/);
 });
 
 test("a Worker session rejects contract v2 retries before consuming old debugging context", async () => {
@@ -79,7 +80,7 @@ test("a Worker session rejects contract v2 retries before consuming old debuggin
 });
 
 test("plan deltas reject unknown tasks, collisions, retroactive changes and ineffective replans", () => {
-  const plan: ProjectPlan = { summary: "x", assumptions: [], tasks: [task], finalVerificationCommands: [] };
+  const plan: ProjectPlan = { ...planFields, summary: "x", assumptions: [], tasks: [task], finalVerificationCommands: [] };
   const delta = { reason: "change", revisedTasks: [{ ...task, goal: "Changed" }], addedTasks: [], cancelledTaskIds: [], invalidatedTaskIds: ["T1"], unaffectedTaskIds: [] };
   assert.doesNotThrow(() => validatePlanDelta(plan, delta));
   assert.throws(() => validatePlanDelta(plan, delta, new Set(["T1"])), /accepted/);

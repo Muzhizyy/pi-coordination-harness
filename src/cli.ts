@@ -11,17 +11,19 @@ function arg(name: string): string | undefined {
 
 async function main(): Promise<void> {
   if (process.argv.includes("--help") || process.argv.length < 3) {
-    console.log(`pi-coordination-harness run --repo <path> --config <file> (--requirement <text> | --requirement-file <file>)`);
+    console.log(`pi-coordination-harness run --repo <path> --config <file> (--requirement <text> | --requirement-file <file>)\npi-coordination-harness resume --repo <path> --config <file> --run-id <id>`);
     return;
   }
   const command = process.argv[2];
-  if (command !== "run") throw new Error(`Unknown command: ${command}`);
+  if (!["run", "resume"].includes(command!)) throw new Error(`Unknown command: ${command}`);
   const repo = resolve(arg("--repo") ?? process.cwd());
   const configPath = resolve(arg("--config") ?? "pi-coordination.config.json");
   const requirement = arg("--requirement") ?? (arg("--requirement-file") ? await readFile(resolve(arg("--requirement-file")!), "utf8") : undefined);
-  if (!requirement) throw new Error("Provide --requirement or --requirement-file");
   const config = await loadConfig(configPath);
-  const result = await new ProjectRuntime(repo, config).run(requirement);
+  const runtime = new ProjectRuntime(repo, config);
+  if (command === "run" && !requirement) throw new Error("Provide --requirement or --requirement-file");
+  if (command === "resume" && !arg("--run-id")) throw new Error("Provide --run-id");
+  const result = command === "resume" ? await runtime.resume(arg("--run-id")!) : await runtime.run(requirement!);
   console.log(JSON.stringify(result, null, 2));
 }
 

@@ -11,6 +11,7 @@ import { createPathPolicyExtension } from "../sandbox/path-policy-extension.js";
 import { pathMatchesPattern } from "../sandbox/path-policy.js";
 import { contextUnits, withinModule } from "./architecture.js";
 import { readRevisionFile } from "./source.js";
+import { EvidenceCache } from "./evidence-cache.js";
 
 export class PlannerContextBudget {
   architectureUnits = 0;
@@ -19,11 +20,12 @@ export class PlannerContextBudget {
   constructor(readonly limits: HarnessConfig["plannerContext"]) {}
   semantic(value: unknown): void {
     const size = contextUnits(value);
-    if (this.architectureUnits + size > this.limits.architectureTokens) throw new Error("Architecture context budget exhausted; narrow the query or commit the decision");
+    if (this.architectureUnits + size > this.limits.architectureTokens) throw new Error("Architecture context budget exhausted; narrow the query or use defer_decision");
     this.architectureUnits += size;
   }
   request(): void {
-    if (++this.evidenceRequests > this.limits.evidenceRequests) throw new Error("Evidence request budget exhausted");
+    if (this.evidenceRequests >= this.limits.evidenceRequests) throw new Error("Evidence request budget exhausted; use defer_decision");
+    this.evidenceRequests++;
   }
   raw(source: string): void {
     const size = contextUnits(source);
@@ -57,6 +59,9 @@ export function createEvidenceScout(repo: string, profile: ModelProfile, pi: PiR
         if (contextUnits(params) > 6000) throw new Error("Evidence packet too large; summarize the decision-relevant facts");
         for (const claim of params.claims) for (const ref of claim.evidence) {
           const file = ref.locator.replace(/:\d+(?:-\d+)?$/, "");
+          const moduleScope = request.scope.modules.map((id) => id);
+          // Symbol-only queries require file/module evidence scope for Scout work.
+          if (!request.scope.files.includes(file) && !moduleScope.length) throw new Error("Scout evidence needs an explicit file or module scope");
           if (pathMatchesPattern(file, sandbox.denyRead)) throw new Error("Evidence references a protected path");
           const source = await readRevisionFile(repo, revision, file);
           const range = ref.locator.match(/:(\d+)(?:-(\d+))?$/);
@@ -98,6 +103,14 @@ export class EvidenceResolver {
       await readRevisionFile(this.repo, this.index.revision, file);
     }
     this.budget.request();
+    const cache = new EvidenceCache(this.repo);
+    const cached = await cache.get(request, this.index.revision);
+    if (cached) {
+      this.budget.semantic(cached);
+      await this.persist?.(request, cached);
+      if (cached.claims.length) this.semanticDecisions.add(request.decision);
+      return cached;
+    }
     const refs = (locators: string[], statement: string): EvidenceRef[] => locators.map((locator) => ({
       id: `IR-${createHash("sha256").update(`${this.index.revision}:${locator}`).digest("hex").slice(0, 16)}`, kind: "source", locator, summary: statement, revision: this.index.revision,
     }));
@@ -105,7 +118,8 @@ export class EvidenceResolver {
       claims: [], confidence: "medium", exceptions: [], unresolved: [], excerpts: [] };
     if (request.types.includes("interfaces")) {
       for (const face of this.index.interfaces.filter((i) => request.scope.symbols.includes(i.id) || request.scope.symbols.includes(i.name) || request.scope.modules.includes(i.owner ?? "") || request.scope.files.some((f) => i.location.startsWith(f)))) {
-        packet.claims.push({ statement: `${face.name}: ${face.summary} (${face.stability ?? "unknown stability"})`, evidence: refs(face.evidence, face.summary) });
+        const record = this.index.knowledge?.find((k) => k.id === `interface:${face.id}`);
+        packet.claims.push({ statement: `${face.name}: ${face.summary} (${face.stability ?? "unknown stability"})`, evidence: refs(face.evidence, face.summary), validation: record?.status === "fresh" ? record.validation : "candidate" });
       }
     }
     if (request.types.includes("dependencies")) {
@@ -118,6 +132,12 @@ export class EvidenceResolver {
       const found = await this.scout(request, this.index.revision);
       packet.claims.push(...found.claims); packet.confidence = found.confidence;
       packet.exceptions = found.exceptions; packet.unresolved = found.unresolved;
+    }
+    for (const claim of packet.claims) for (const ref of claim.evidence) {
+      const file = ref.locator.replace(/:\d+(?:-\d+)?$/, "");
+      if (request.scope.files.length || request.scope.modules.length) {
+        if (!request.scope.files.includes(file) && !this.index.modules.some((m) => request.scope.modules.includes(m.id) && withinModule(file, m.path))) throw new Error("Evidence exceeds the requested scope");
+      }
     }
     if (request.types.includes("excerpt")) {
       if (!this.semanticDecisions.has(request.decision)) throw new Error("Request semantic evidence for this decision before drilling into raw source");
@@ -134,6 +154,7 @@ export class EvidenceResolver {
     // Source bytes have their own budget; only excerpt locators count as architecture context.
     this.budget.semantic({ ...packet, excerpts: packet.excerpts.map(({ locator }) => ({ locator })) });
     await this.persist?.(request, packet);
+    await cache.put(request, packet);
     if (!request.types.includes("excerpt") && packet.claims.length > 0) this.semanticDecisions.add(request.decision);
     return packet;
   }

@@ -3,6 +3,8 @@ import type { ProjectIrIndex } from "../types.js";
 import { deterministicInventory } from "./repository.js";
 import { indexDependencies } from "./dependencies.js";
 import { readJson, readText, writeJson, writeText } from "../utils/fs.js";
+import { materializeKnowledge } from "./knowledge.js";
+import { gitOk } from "../utils/exec.js";
 
 export interface ProjectIrManifest {
   schemaVersion: 1;
@@ -52,12 +54,22 @@ export class ProjectIrStore {
     unresolved: string[];
     dependencies?: ProjectIrIndex["dependencies"];
     decisions?: ProjectIrIndex["decisions"];
+    previous?: ProjectIrSnapshot;
+    focusIds?: string[];
+    removedKnowledgeIds?: string[];
   }): Promise<void> {
     const inventory = await this.buildInventory();
     if (inventory.revision !== input.revision) throw new Error("Repository changed during Project IR construction");
+    const old = input.previous?.index;
+    const scoped = input.focusIds !== undefined;
+    const removed = new Set(input.removedKnowledgeIds ?? []);
+    const merge = <T extends { id: string }>(kind: string, values: T[], previous: T[] = []): T[] => scoped
+      ? [...previous.filter((x) => !values.some((v) => v.id === x.id) && !removed.has(`${kind}:${x.id}`)), ...values] : values;
+    const modules = merge("module", input.modules, old?.modules);
     const index: ProjectIrIndex = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       revision: input.revision,
+      tree: await gitOk(this.repo, ["rev-parse", `${input.revision}^{tree}`]),
       generatedAt: new Date().toISOString(),
       repository: {
         name: input.repositoryName ?? inventory.name,
@@ -66,22 +78,33 @@ export class ProjectIrStore {
         trackedFileCount: inventory.files.length,
         topLevelEntries: inventory.topLevelEntries,
       },
-      modules: input.modules,
-      interfaces: input.interfaces,
-      capabilities: input.capabilities,
-      constraints: input.constraints,
-      unresolved: input.unresolved,
-      dependencies: [...await indexDependencies(this.repo, input.revision, inventory.files, input.modules), ...(input.dependencies ?? []).filter((d) => d.kind === "semantic")],
-      decisions: input.decisions ?? [],
+      modules,
+      interfaces: merge("interface", input.interfaces, old?.interfaces),
+      capabilities: merge("capability", input.capabilities, old?.capabilities),
+      constraints: merge("constraint", input.constraints, old?.constraints),
+      unresolved: scoped ? [...new Set([...(old?.unresolved ?? []), ...input.unresolved])] : input.unresolved,
+      dependencies: [...await indexDependencies(this.repo, input.revision, inventory.files, modules), ...(scoped ? old?.dependencies?.filter((d) => d.kind === "semantic" && !(input.dependencies ?? []).some((n) => n.from === d.from && n.to === d.to)) ?? [] : []), ...(input.dependencies ?? []).filter((d) => d.kind === "semantic")],
+      // The builder cannot reconstruct decisions or overwrite Planner's rationale.
+      decisions: (old?.decisions ?? []).map((d) => d.status ? d : { ...d, status: "superseded" }),
     };
-    await writeText(this.architecturePath, `${input.architectureMarkdown.trim()}\n`);
+    index.knowledge = await materializeKnowledge(this.repo, index, old?.knowledge);
+    if (scoped) for (const record of index.knowledge) {
+      const previous = old?.knowledge?.find((k) => k.id === record.id);
+      if (previous?.status === "dirty" && !input.focusIds!.includes(record.id) && record.source !== "deterministic") Object.assign(record, previous);
+    }
+    await this.saveSnapshot({ index, architecture: scoped ? `${input.previous!.architecture}\n\n${input.architectureMarkdown.trim()}\n` : `${input.architectureMarkdown.trim()}\n`, decisions: "" });
+  }
+
+  async saveSnapshot(snapshot: ProjectIrSnapshot): Promise<void> {
+    const { index } = snapshot;
+    await writeText(this.architecturePath, snapshot.architecture);
     await writeJson(this.indexPath, index);
-    try { await readText(this.decisionsPath); } catch { await writeText(this.decisionsPath, "# Durable project decisions\n\n"); }
+    await writeText(this.decisionsPath, `# Durable project decisions\n\n${JSON.stringify(index.decisions ?? [], null, 2)}\n`);
     await writeJson(this.manifestPath, {
       schemaVersion: 1,
-      indexedRevision: input.revision,
+      indexedRevision: index.revision,
       generatedAt: index.generatedAt,
-      status: "fresh",
+      status: index.knowledge?.some((k) => k.status === "dirty") ? "stale" : "fresh",
     });
   }
 

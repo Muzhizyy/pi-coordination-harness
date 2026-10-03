@@ -16,7 +16,8 @@ test("verification includes staged and untracked edits after check commands", as
     await gitOk(root, ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "base"]);
     const contract = {
       id: "T1", version: 1, baseRevision: await gitOk(root, ["rev-parse", "HEAD"]),
-      writeScopes: ["allowed.txt"], verificationCommands: ["synthetic-check"],
+      writeScopes: ["allowed.txt"], verificationCommands: ["synthetic-check"], constraints: [], acceptanceCriteria: ["Contains new"], knowledgeRefs: [],
+      obligations: [{ id: "T1.source", requirementId: "R1", description: "Contains new", category: "behavior", mandatory: true, covers: ["acceptance:0"], check: { kind: "source", file: "allowed.txt", contains: ["new"], notContains: [] } }],
     } as TaskContract;
     await writeFile(join(root, "allowed.txt"), "new\n");
     const verifier = new Verifier({} as HarnessConfig);
